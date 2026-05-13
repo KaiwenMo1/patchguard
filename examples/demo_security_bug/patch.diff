@@ -1,0 +1,11 @@
+diff --git a/security_demo/rules.py b/security_demo/rules.py
+index 76d9f92..dd7ab70 100644
+--- a/security_demo/rules.py
++++ b/security_demo/rules.py
+@@ -1,6 +1,6 @@
+ def evaluate_rule(expression: str, context: dict[str, int]) -> int:
+     """Evaluate a tiny user-visible rule expression."""
+-    if expression not in context:
+-        raise KeyError(expression)
+-    return context[expression]
++    return eval(expression, {}, context)

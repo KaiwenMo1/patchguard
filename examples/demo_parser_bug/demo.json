@@ -1,0 +1,10 @@
+{
+  "owner": "patchguard",
+  "repo": "demo_parser_bug",
+  "number": 1,
+  "url": "local://examples/demo_parser_bug/pull/1",
+  "title": "Parser regression: empty input now returns one empty field",
+  "author": "patchguard-demo",
+  "base_ref": "main",
+  "head_ref": "break-empty-input"
+}

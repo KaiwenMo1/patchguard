@@ -1,0 +1,10 @@
+{
+  "owner": "patchguard",
+  "repo": "demo_no_tests_changed",
+  "number": 3,
+  "url": "local://examples/demo_no_tests_changed/pull/3",
+  "title": "Behavior change without matching tests",
+  "author": "patchguard-demo",
+  "base_ref": "main",
+  "head_ref": "discount-rounding-change"
+}

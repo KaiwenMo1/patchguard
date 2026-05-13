@@ -1,0 +1,10 @@
+diff --git a/notests_demo/discounts.py b/notests_demo/discounts.py
+index 1ab43df..b2e7d4c 100644
+--- a/notests_demo/discounts.py
++++ b/notests_demo/discounts.py
+@@ -1,5 +1,5 @@
+ def apply_discount(price: float, percent: float) -> float:
+     """Apply a percentage discount and round to cents."""
+     discounted = price * (1 - percent / 100)
+-    return round(discounted, 2)
++    return int(discounted)

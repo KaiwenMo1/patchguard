@@ -1,0 +1,10 @@
+{
+  "owner": "patchguard",
+  "repo": "demo_security_bug",
+  "number": 2,
+  "url": "local://examples/demo_security_bug/pull/2",
+  "title": "Security regression: rule evaluator now uses eval",
+  "author": "patchguard-demo",
+  "base_ref": "main",
+  "head_ref": "unsafe-eval"
+}

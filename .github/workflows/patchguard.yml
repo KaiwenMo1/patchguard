@@ -1,0 +1,47 @@
+name: PatchGuard
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  analyze:
+    name: PatchGuard PR analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PatchGuard
+        run: python -m pip install -e backend
+
+      - name: Build PatchGuard sandbox image
+        run: docker build -t patchguard-python-sandbox:latest -f sandbox/python/Dockerfile sandbox/python
+
+      - name: Run PatchGuard
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          patchguard analyze "$PR_URL" \
+            --out patchguard-report.md \
+            --format markdown \
+            --skip-llm \
+            --timeout 180 \
+            --keep-workspace
+
+      - name: Upload PatchGuard report
+        uses: actions/upload-artifact@v4
+        with:
+          name: patchguard-report
+          path: patchguard-report.md

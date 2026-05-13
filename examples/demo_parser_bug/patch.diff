@@ -1,0 +1,11 @@
+diff --git a/parser_demo/parser.py b/parser_demo/parser.py
+index 0d3af9e..849c442 100644
+--- a/parser_demo/parser.py
++++ b/parser_demo/parser.py
+@@ -1,7 +1,6 @@
+ def parse_csv_line(text: str) -> list[str]:
+     """Parse a tiny comma-separated line into trimmed fields."""
+     if text == "":
+-        return []
++        return [""]
+     return [part.strip() for part in text.split(",")]
