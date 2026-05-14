@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable
+
 from patchguard.models import (
+    ChangedFile,
     MergeDecision,
     MergeRecommendation,
     PatchGuardReport,
+    RiskBreakdown,
+    RiskInput,
     RiskLevel,
     RiskReason,
     RiskReport,
     RunStatus,
+    SecurityFinding,
+    SecurityFindingCounts,
+    ToolRun,
 )
 from patchguard.services.diff_service import DiffService
 
@@ -21,175 +30,441 @@ class RiskScoreService:
         self.diff_service = diff_service or DiffService()
 
     def score_risk_report(self, report: RiskReport) -> RiskReport:
-        score, level, reasons = self.compute_file_risk(report.changed_files)
-        if report.existing_tests:
-            if report.existing_tests.status == RunStatus.FAILED:
-                score += 40
-                reasons.append(
-                    RiskReason(
-                        category="existing_tests",
-                        score_impact=40,
-                        reason="Existing pytest suite failed",
-                    )
-                )
-            elif report.existing_tests.status == RunStatus.ERROR:
-                score += 40
-                reasons.append(
-                    RiskReason(
-                        category="existing_tests",
-                        score_impact=40,
-                        reason="Existing pytest suite errored or timed out",
-                    )
-                )
-        if report.dependency_install and report.dependency_install.status == RunStatus.FAILED:
-            score += 10
-            reasons.append(
-                RiskReason(
-                    category="dependencies",
-                    score_impact=10,
-                    reason="Dependency installation failed in sandbox",
-                )
-            )
-        elif report.dependency_install and report.dependency_install.status == RunStatus.ERROR:
-            score += 10
-            reasons.append(
-                RiskReason(
-                    category="dependencies",
-                    score_impact=10,
-                    reason="Dependency installation errored or timed out in sandbox",
-                )
-            )
-        for run in report.generated_test_results:
-            generated_impact = self._generated_test_impact(run)
-            if generated_impact:
-                score += generated_impact
-                reasons.append(
-                    RiskReason(
-                        category="generated_tests",
-                        score_impact=generated_impact,
-                        reason=self._generated_test_reason(run),
-                    )
-                )
-        security_score = self._security_score(report.security_findings)
-        if security_score:
-            score += security_score
-            reasons.append(
-                RiskReason(
-                    category="security",
-                    score_impact=security_score,
-                    reason=f"Bandit reported {len(report.security_findings)} security finding(s)",
-                )
-            )
-        score = max(0, min(100, score))
-        level = self._level(score)
-        report.risk_score = score
-        report.risk_level = level
-        report.risk_reasons = reasons
-        report.merge_decision = self._decision_for_score(score)
+        risk_input = self.input_from_risk_report(report)
+        breakdown = self.compute_breakdown(risk_input)
+        self._apply_breakdown(report, breakdown)
+        report.merge_decision = self._decision_for_risk_input(risk_input, breakdown.overall_score)
         report.recommendation = self._recommendation_for_risk_report(report)
         return report
 
-    def compute_file_risk(self, changed_files) -> tuple[int, RiskLevel, list[RiskReason]]:
-        reasons: list[RiskReason] = []
-        score = 0
-        diff_summary = self.diff_service.summarize(changed_files)
-
-        def add(category: str, impact: int, reason: str) -> None:
-            nonlocal score
-            score += impact
-            reasons.append(RiskReason(category=category, score_impact=impact, reason=reason))
-
-        changed_count = len(changed_files)
-        if changed_count > 10:
-            add("change_size", 15, f"More than 10 files changed ({changed_count})")
-
-        if diff_summary.total_changes > 500:
-            add(
-                "change_size",
-                15,
-                f"More than 500 total lines changed ({diff_summary.total_changes})",
-            )
-
-        if diff_summary.source_changed_without_tests:
-            add("test_coverage", 20, "Source files changed without test files changing")
-
-        if diff_summary.security_sensitive_files:
-            names = ", ".join(file.filename for file in diff_summary.security_sensitive_files[:3])
-            add("security_sensitive", 20, f"Security-sensitive file changed: {names}")
-
-        dependency_or_config = [*diff_summary.dependency_files, *diff_summary.config_files]
-        if dependency_or_config:
-            names = ", ".join(file.filename for file in dependency_or_config[:3])
-            add("dependency_config", 10, f"Dependency or config file changed: {names}")
-
-        score = max(0, min(100, score))
-        return score, self._level(score), reasons
-
     def score(self, report: PatchGuardReport) -> PatchGuardReport:
-        reasons: list[RiskReason] = []
-        score = 0
-
-        def add(category: str, impact: int, reason: str) -> None:
-            nonlocal score
-            score += impact
-            reasons.append(RiskReason(category=category, score_impact=impact, reason=reason))
-
-        file_score, _, file_reasons = self.compute_file_risk(report.changed_files)
-        score += file_score
-        reasons.extend(file_reasons)
-
-        removed_files = [file for file in report.changed_files if file.status == "removed"]
-        if removed_files:
-            add("deletions", min(15, 5 + len(removed_files)), f"{len(removed_files)} file(s) removed")
-
-        for run in report.existing_test_results:
-            if run.status == RunStatus.FAILED:
-                add("existing_tests", 25, f"Existing test command failed: {run.name}")
-            elif run.status == RunStatus.ERROR:
-                add("existing_tests", 20, f"Existing test command errored: {run.name}")
-            elif run.status == RunStatus.SKIPPED:
-                add("existing_tests", 8, f"Existing tests skipped: {run.summary}")
-
-        for run in report.generated_test_results:
-            generated_impact = self._generated_test_impact(run)
-            if generated_impact:
-                add("generated_tests", generated_impact, self._generated_test_reason(run))
-
-        for run in report.sandbox_results:
-            if run.kind == "dependency_install" and run.status == RunStatus.FAILED:
-                add("dependencies", 10, "Dependency installation failed in sandbox")
-            elif run.kind == "dependency_install" and run.status == RunStatus.SKIPPED:
-                add("dependencies", 5, f"Dependency installation skipped: {run.summary}")
-            elif run.kind == "docker_build" and run.status == RunStatus.FAILED:
-                add("sandbox", 15, "Docker sandbox image build failed")
-            elif run.status == RunStatus.ERROR:
-                add("sandbox", 15, f"Sandbox step errored: {run.name}")
-
-        for run in report.static_analysis_results:
-            if run.status == RunStatus.SKIPPED:
-                add("static_analysis", 5, f"Static analysis skipped: {run.name}")
-
-        if report.static_findings:
-            impact = min(12, 3 + len(report.static_findings))
-            add("static_analysis", impact, f"ruff reported {len(report.static_findings)} finding(s)")
-
-        security_score = self._security_score(report.security_findings)
-        if security_score:
-            add(
-                "security",
-                security_score,
-                f"Bandit reported {len(report.security_findings)} security finding(s)",
-            )
-
-        if report.errors:
-            add("pipeline", min(20, 5 * len(report.errors)), "Pipeline produced partial evidence")
-
-        report.risk_score = max(0, min(100, score))
-        report.risk_reasons = reasons
-        report.risk_level = self._level(report.risk_score)
-        report.merge_decision = self._decision(report)
+        risk_input = self.input_from_patch_guard_report(report)
+        breakdown = self.compute_breakdown(risk_input)
+        self._apply_breakdown(report, breakdown)
+        report.merge_decision = self._decision_for_risk_input(risk_input, breakdown.overall_score)
         report.recommendation = self._recommendation(report)
         return report
+
+    def input_from_risk_report(self, report: RiskReport) -> RiskInput:
+        diff_summary = self.diff_service.summarize(report.changed_files)
+        existing_runs = [report.existing_tests] if report.existing_tests else []
+        dependency_runs = [report.dependency_install] if report.dependency_install else []
+        return self._build_input(
+            changed_files=report.changed_files,
+            changed_functions_count=len(report.changed_functions),
+            source_changed=bool(diff_summary.source_files),
+            tests_changed=bool(diff_summary.test_files),
+            dependency_files_changed=bool(diff_summary.dependency_files),
+            config_files_changed=bool(diff_summary.config_files),
+            security_sensitive_files_changed=bool(diff_summary.security_sensitive_files),
+            existing_test_runs=existing_runs,
+            generated_test_runs=report.generated_test_results,
+            dependency_runs=dependency_runs,
+            security_findings=report.security_findings,
+        )
+
+    def input_from_patch_guard_report(self, report: PatchGuardReport) -> RiskInput:
+        diff_summary = self.diff_service.summarize(report.changed_files)
+        dependency_runs = [
+            run for run in report.sandbox_results if run.kind == "dependency_install"
+        ]
+        return self._build_input(
+            changed_files=report.changed_files,
+            changed_functions_count=len(report.changed_functions),
+            source_changed=bool(diff_summary.source_files),
+            tests_changed=bool(diff_summary.test_files),
+            dependency_files_changed=bool(diff_summary.dependency_files),
+            config_files_changed=bool(diff_summary.config_files),
+            security_sensitive_files_changed=bool(diff_summary.security_sensitive_files),
+            existing_test_runs=report.existing_test_results,
+            generated_test_runs=report.generated_test_results,
+            dependency_runs=dependency_runs,
+            security_findings=report.security_findings,
+        )
+
+    def compute_breakdown(self, risk_input: RiskInput) -> RiskBreakdown:
+        reasons: list[RiskReason] = []
+        change_size = self._change_size_risk(risk_input, reasons)
+        test_coverage = self._test_coverage_risk(risk_input, reasons)
+        behavioral = self._behavioral_risk(risk_input, reasons)
+        security = self._security_risk(risk_input, reasons)
+        uncertainty = self._uncertainty_risk(risk_input, reasons)
+        weighted_score = round(
+            0.15 * change_size
+            + 0.30 * test_coverage
+            + 0.25 * behavioral
+            + 0.20 * security
+            + 0.10 * uncertainty
+        )
+        floor_score, floor_reason = self._minimum_score_floor(risk_input)
+        overall_score = max(weighted_score, floor_score)
+        if floor_reason and floor_score > weighted_score:
+            reasons.append(
+                RiskReason(
+                    category="risk_floor",
+                    score_impact=floor_score - weighted_score,
+                    reason=floor_reason,
+                    severity=self._severity_for_score(floor_score),
+                    evidence=[f"weighted_score={weighted_score}", f"floor_score={floor_score}"],
+                )
+            )
+        overall_score = self._clamp(overall_score)
+        return RiskBreakdown(
+            overall_score=overall_score,
+            risk_level=self._level(overall_score),
+            change_size_risk=change_size,
+            test_coverage_risk=test_coverage,
+            behavioral_risk=behavioral,
+            security_risk=security,
+            uncertainty_risk=uncertainty,
+            reasons=reasons,
+        )
+
+    def _build_input(
+        self,
+        *,
+        changed_files: list[ChangedFile],
+        changed_functions_count: int,
+        source_changed: bool,
+        tests_changed: bool,
+        dependency_files_changed: bool,
+        config_files_changed: bool,
+        security_sensitive_files_changed: bool,
+        existing_test_runs: list[ToolRun],
+        generated_test_runs: list[ToolRun],
+        dependency_runs: list[ToolRun],
+        security_findings: list[SecurityFinding],
+    ) -> RiskInput:
+        existing_status = self._combined_status(existing_test_runs)
+        generated_status = self._combined_status(
+            [
+                run
+                for run in generated_test_runs
+                if run.name == "run generated PatchGuard tests"
+                or run.status in {RunStatus.FAILED, RunStatus.ERROR}
+            ]
+        )
+        return RiskInput(
+            changed_files_count=len(changed_files),
+            total_lines_changed=sum(file.changes for file in changed_files),
+            changed_functions_count=changed_functions_count,
+            source_changed=source_changed,
+            tests_changed=tests_changed,
+            dependency_files_changed=dependency_files_changed,
+            config_files_changed=config_files_changed,
+            security_sensitive_files_changed=security_sensitive_files_changed,
+            existing_tests_status=existing_status,
+            generated_tests_status=generated_status,
+            existing_tests_failed_count=self._failed_count(existing_test_runs),
+            generated_tests_failed_count=self._failed_count(generated_test_runs),
+            security_findings_by_severity=self._security_counts(security_findings),
+            secrets_detected=self._secrets_detected(security_findings),
+            dependency_install_failed=any(
+                run.status in {RunStatus.FAILED, RunStatus.ERROR}
+                for run in dependency_runs
+            ),
+            no_existing_tests_found=self._no_existing_tests_found(existing_test_runs),
+            diff_too_large_for_full_analysis=self._diff_too_large(changed_files),
+            behavior_changed=source_changed,
+        )
+
+    def _change_size_risk(self, risk_input: RiskInput, reasons: list[RiskReason]) -> int:
+        score = 0
+        if risk_input.changed_files_count > 20:
+            score += 70
+            self._reason(
+                reasons,
+                "change_size",
+                70,
+                f"Large PR changed {risk_input.changed_files_count} files",
+                "high",
+            )
+        elif risk_input.changed_files_count > 10:
+            score += 45
+            self._reason(
+                reasons,
+                "change_size",
+                45,
+                f"More than 10 files changed ({risk_input.changed_files_count})",
+                "medium",
+            )
+        if risk_input.total_lines_changed > 1000:
+            score += 60
+            self._reason(
+                reasons,
+                "change_size",
+                60,
+                f"More than 1000 total lines changed ({risk_input.total_lines_changed})",
+                "high",
+            )
+        elif risk_input.total_lines_changed > 500:
+            score += 45
+            self._reason(
+                reasons,
+                "change_size",
+                45,
+                f"More than 500 total lines changed ({risk_input.total_lines_changed})",
+                "medium",
+            )
+        if risk_input.changed_functions_count > 20:
+            score += 35
+            self._reason(
+                reasons,
+                "change_size",
+                35,
+                f"{risk_input.changed_functions_count} changed functions/classes",
+                "medium",
+            )
+        elif risk_input.changed_functions_count > 10:
+            score += 20
+            self._reason(
+                reasons,
+                "change_size",
+                20,
+                f"{risk_input.changed_functions_count} changed functions/classes",
+                "low",
+            )
+        return self._clamp(score)
+
+    def _test_coverage_risk(self, risk_input: RiskInput, reasons: list[RiskReason]) -> int:
+        score = 0
+        if risk_input.existing_tests_status == "failed":
+            score += 100
+            self._reason(
+                reasons,
+                "existing_tests",
+                100,
+                "Existing pytest suite failed",
+                "critical",
+                [f"failed_count={risk_input.existing_tests_failed_count}"],
+            )
+        elif risk_input.existing_tests_status == "error":
+            score += 85
+            self._reason(
+                reasons,
+                "existing_tests",
+                85,
+                "Existing pytest suite errored or timed out",
+                "high",
+            )
+        elif risk_input.existing_tests_status in {"skipped", "not_run"} and risk_input.source_changed:
+            score += 35
+            self._reason(
+                reasons,
+                "existing_tests",
+                35,
+                "Existing tests did not produce pass/fail evidence",
+                "medium",
+                [f"status={risk_input.existing_tests_status}"],
+            )
+
+        if risk_input.generated_tests_status == "failed":
+            score += 100
+            self._reason(
+                reasons,
+                "generated_tests",
+                100,
+                "Generated regression tests failed",
+                "critical",
+                [f"failed_count={risk_input.generated_tests_failed_count}"],
+            )
+        elif risk_input.generated_tests_status == "error":
+            score += 65
+            self._reason(
+                reasons,
+                "generated_tests",
+                65,
+                "Generated regression tests errored or timed out",
+                "high",
+            )
+
+        if risk_input.source_changed and not risk_input.tests_changed:
+            score += 80
+            self._reason(
+                reasons,
+                "test_coverage",
+                80,
+                "Source files changed without test files changing",
+                "high",
+            )
+        if risk_input.no_existing_tests_found:
+            score += 45
+            self._reason(
+                reasons,
+                "test_coverage",
+                45,
+                "No existing pytest tests were discovered",
+                "medium",
+            )
+        return self._clamp(score)
+
+    def _behavioral_risk(self, risk_input: RiskInput, reasons: list[RiskReason]) -> int:
+        score = 0
+        if risk_input.generated_tests_status == "failed":
+            score += 100
+            self._reason(
+                reasons,
+                "behavioral",
+                100,
+                "Generated tests found behavior that does not match expectations",
+                "critical",
+            )
+        elif risk_input.existing_tests_status == "failed":
+            score += 90
+            self._reason(
+                reasons,
+                "behavioral",
+                90,
+                "Existing tests indicate behavior changed unexpectedly",
+                "critical",
+            )
+        elif risk_input.source_changed:
+            score += 30
+            self._reason(
+                reasons,
+                "behavioral",
+                30,
+                "Python source behavior changed",
+                "low",
+            )
+        if risk_input.security_sensitive_files_changed:
+            score += 85
+            self._reason(
+                reasons,
+                "behavioral",
+                85,
+                "Security-sensitive code path changed",
+                "high",
+            )
+        if risk_input.dependency_files_changed:
+            score += 35
+            self._reason(
+                reasons,
+                "behavioral",
+                35,
+                "Dependency files changed",
+                "medium",
+            )
+        if risk_input.config_files_changed:
+            score += 25
+            self._reason(
+                reasons,
+                "behavioral",
+                25,
+                "Configuration files changed",
+                "low",
+            )
+        for category in risk_input.behavior_risky_categories:
+            impact = self._behavior_category_impact(category)
+            if impact:
+                score += impact
+                self._reason(
+                    reasons,
+                    "behavioral",
+                    impact,
+                    f"Behavior analysis flagged {category}",
+                    self._severity_for_score(impact),
+                )
+        return self._clamp(score)
+
+    def _security_risk(self, risk_input: RiskInput, reasons: list[RiskReason]) -> int:
+        counts = risk_input.security_findings_by_severity
+        score = 0
+        if counts.critical:
+            score += 100
+            self._reason(reasons, "security", 100, f"{counts.critical} critical security finding(s)", "critical")
+        if counts.high:
+            impact = min(100, counts.high * 80)
+            score += impact
+            self._reason(reasons, "security", impact, f"{counts.high} high severity security finding(s)", "critical")
+        if counts.medium:
+            impact = min(80, counts.medium * 45)
+            score += impact
+            self._reason(reasons, "security", impact, f"{counts.medium} medium severity security finding(s)", "high")
+        if counts.low:
+            impact = min(50, counts.low * 15)
+            score += impact
+            self._reason(reasons, "security", impact, f"{counts.low} low severity security finding(s)", "medium")
+        if risk_input.security_sensitive_files_changed:
+            score += 35
+            self._reason(reasons, "security", 35, "Security-sensitive filename changed", "medium")
+        if risk_input.secrets_detected:
+            score += 100
+            self._reason(reasons, "security", 100, "Potential secret detected by security scan", "critical")
+        return self._clamp(score)
+
+    def _uncertainty_risk(self, risk_input: RiskInput, reasons: list[RiskReason]) -> int:
+        score = 0
+        if risk_input.dependency_install_failed:
+            score += 65
+            self._reason(
+                reasons,
+                "dependencies",
+                65,
+                "Dependency installation failed, limiting test evidence",
+                "high",
+            )
+        if risk_input.existing_tests_status in {"skipped", "not_run"} and risk_input.source_changed:
+            score += 40
+            self._reason(
+                reasons,
+                "uncertainty",
+                40,
+                "Existing test evidence is missing",
+                "medium",
+                [f"status={risk_input.existing_tests_status}"],
+            )
+        if risk_input.generated_tests_status in {"skipped", "not_run"} and risk_input.source_changed:
+            score += 25
+            self._reason(
+                reasons,
+                "uncertainty",
+                25,
+                "Generated regression tests did not run",
+                "low",
+                [f"status={risk_input.generated_tests_status}"],
+            )
+        if risk_input.no_existing_tests_found:
+            score += 45
+            self._reason(reasons, "uncertainty", 45, "No test suite was discovered", "medium")
+        if risk_input.pr_description_missing:
+            score += 15
+            self._reason(reasons, "uncertainty", 15, "PR description is missing", "low")
+        if risk_input.diff_too_large_for_full_analysis:
+            score += 60
+            self._reason(reasons, "uncertainty", 60, "Diff was too large for complete line-level analysis", "high")
+        if risk_input.behavior_confidence is not None and risk_input.behavior_confidence < 0.4:
+            score += 20
+            self._reason(reasons, "uncertainty", 20, "Behavior analysis confidence was low", "low")
+        return self._clamp(score)
+
+    def _minimum_score_floor(self, risk_input: RiskInput) -> tuple[int, str | None]:
+        counts = risk_input.security_findings_by_severity
+        if risk_input.secrets_detected:
+            return 90, "Secret-like security finding requires critical risk floor"
+        if counts.critical or counts.high:
+            return 75, "High-severity security evidence requires high risk floor"
+        if risk_input.existing_tests_status == "failed":
+            return 80, "Failing existing tests require critical risk floor"
+        if risk_input.generated_tests_status == "failed":
+            return 70, "Failing generated regression tests require high risk floor"
+        if (
+            risk_input.security_sensitive_files_changed
+            and risk_input.source_changed
+            and not risk_input.tests_changed
+        ):
+            return 70, "Security-sensitive source changed without test changes"
+        return 0, None
+
+    @staticmethod
+    def _apply_breakdown(
+        report: RiskReport | PatchGuardReport,
+        breakdown: RiskBreakdown,
+    ) -> None:
+        report.risk_score = breakdown.overall_score
+        report.risk_level = breakdown.risk_level
+        report.risk_breakdown = breakdown
+        report.risk_reasons = breakdown.reasons
 
     @staticmethod
     def _level(score: int) -> RiskLevel:
@@ -202,79 +477,140 @@ class RiskScoreService:
         return RiskLevel.LOW
 
     @staticmethod
-    def _decision_for_score(score: int) -> MergeDecision:
-        if score >= 80:
+    def _decision_for_risk_input(risk_input: RiskInput, score: int) -> MergeDecision:
+        counts = risk_input.security_findings_by_severity
+        if (
+            score >= 80
+            or risk_input.existing_tests_status in {"failed", "error"}
+            or counts.critical
+            or counts.high
+            or risk_input.secrets_detected
+        ):
             return MergeDecision.DO_NOT_MERGE
-        if score >= 60:
+        if risk_input.generated_tests_status == "failed" or score >= 60:
             return MergeDecision.MANUAL_REVIEW
         if score >= 30:
             return MergeDecision.MERGE_WITH_CAUTION
         return MergeDecision.MERGE
 
     @staticmethod
-    def _security_score(findings) -> int:
-        score = 0
+    def _combined_status(runs: Iterable[ToolRun]) -> str:
+        statuses = [run.status for run in runs if run is not None]
+        if not statuses:
+            return "not_run"
+        if any(status == RunStatus.FAILED for status in statuses):
+            return "failed"
+        if any(status == RunStatus.ERROR for status in statuses):
+            return "error"
+        if all(status == RunStatus.SKIPPED for status in statuses):
+            return "skipped"
+        if any(status == RunStatus.PASSED for status in statuses):
+            return "passed"
+        return "not_run"
+
+    @staticmethod
+    def _failed_count(runs: Iterable[ToolRun]) -> int:
+        total = 0
+        for run in runs:
+            if run.status != RunStatus.FAILED:
+                continue
+            output = ""
+            if run.command:
+                output = f"{run.command.stdout_tail}\n{run.command.stderr_tail}"
+            match = re.search(r"(\d+)\s+failed", output)
+            total += int(match.group(1)) if match else 1
+        return total
+
+    @staticmethod
+    def _security_counts(findings: list[SecurityFinding]) -> SecurityFindingCounts:
+        counts = SecurityFindingCounts()
         for finding in findings:
             severity = finding.severity.upper()
-            if severity == "HIGH":
-                score += 20
+            if severity == "CRITICAL":
+                counts.critical += 1
+            elif severity == "HIGH":
+                counts.high += 1
             elif severity == "MEDIUM":
-                score += 10
+                counts.medium += 1
             else:
-                score += 5
-        return min(score, 25)
+                counts.low += 1
+        return counts
 
     @staticmethod
-    def _generated_test_impact(run) -> int:
-        if run.name == "run generated PatchGuard tests":
-            if run.status == RunStatus.FAILED:
-                return 30
-            if run.status == RunStatus.ERROR:
-                return 15
-        if run.name == "compile generated PatchGuard tests" and run.status in {
-            RunStatus.FAILED,
-            RunStatus.ERROR,
-        }:
-            return 15
-        return 0
+    def _secrets_detected(findings: list[SecurityFinding]) -> bool:
+        secret_codes = {"B105", "B106", "B107"}
+        secret_words = ("secret", "password", "token", "credential", "private key")
+        for finding in findings:
+            haystack = f"{finding.issue_code or ''} {finding.message} {finding.issue_text}".lower()
+            if finding.issue_code in secret_codes or any(word in haystack for word in secret_words):
+                return True
+        return False
 
     @staticmethod
-    def _generated_test_reason(run) -> str:
-        if run.name == "run generated PatchGuard tests" and run.status == RunStatus.FAILED:
-            return "Generated tests failed"
-        return f"Generated tests errored or timed out: {run.name}"
-
-    @staticmethod
-    def _decision(report: PatchGuardReport) -> MergeDecision:
-        has_failed_existing_tests = any(
-            run.status in {RunStatus.FAILED, RunStatus.ERROR}
-            for run in report.existing_test_results
-        )
-        has_failed_generated_tests = any(
-            run.name == "run generated PatchGuard tests" and run.status == RunStatus.FAILED
-            for run in report.generated_test_results
-        )
-        has_high_security = any(
-            finding.severity.upper() == "HIGH" for finding in report.security_findings
-        )
-        has_skipped_evidence = any(
+    def _no_existing_tests_found(runs: Iterable[ToolRun]) -> bool:
+        return any(
             run.status == RunStatus.SKIPPED
-            for run in [
-                *report.sandbox_results,
-                *report.existing_test_results,
-                *report.generated_test_results,
-                *report.static_analysis_results,
-            ]
+            and "no pytest tests discovered" in run.summary.lower()
+            for run in runs
         )
-        if report.risk_score >= 80 or has_failed_existing_tests or has_high_security:
-            return MergeDecision.DO_NOT_MERGE
-        if has_failed_generated_tests:
-            return MergeDecision.MANUAL_REVIEW
-        if report.risk_score >= 55 or report.errors or has_skipped_evidence:
-            return MergeDecision.MANUAL_REVIEW
-        if report.risk_score >= 30:
-            return MergeDecision.MERGE_WITH_CAUTION
-        return MergeDecision.MERGE
+
+    @staticmethod
+    def _diff_too_large(changed_files: list[ChangedFile]) -> bool:
+        total_lines = sum(file.changes for file in changed_files)
+        missing_python_patches = any(
+            file.is_python
+            and file.status != "removed"
+            and file.patch is None
+            and file.changes > 500
+            for file in changed_files
+        )
+        return total_lines > 2500 or missing_python_patches
+
+    @staticmethod
+    def _reason(
+        reasons: list[RiskReason],
+        category: str,
+        impact: int,
+        reason: str,
+        severity: str,
+        evidence: list[str] | None = None,
+    ) -> None:
+        reasons.append(
+            RiskReason(
+                category=category,
+                score_impact=impact,
+                reason=reason,
+                severity=severity,
+                evidence=evidence or [],
+            )
+        )
+
+    @staticmethod
+    def _clamp(score: int) -> int:
+        return max(0, min(100, score))
+
+    @staticmethod
+    def _severity_for_score(score: int) -> str:
+        if score >= 80:
+            return "critical"
+        if score >= 60:
+            return "high"
+        if score >= 30:
+            return "medium"
+        return "low"
+
+    @staticmethod
+    def _behavior_category_impact(category: str) -> int:
+        normalized = category.lower()
+        if normalized in {"auth", "security", "input_validation", "api_contract"}:
+            return 50
+        if normalized in {"database", "data_model", "dependency", "concurrency"}:
+            return 35
+        if normalized in {"parser", "error_handling", "performance"}:
+            return 25
+        if normalized == "unknown":
+            return 15
+        return 10
 
     @staticmethod
     def _recommendation_for_risk_report(report: RiskReport) -> MergeRecommendation:

@@ -149,21 +149,21 @@ export default function App() {
   const failedWithoutReport = analysis?.status === "failed" && !report;
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f9fc_0%,#eef3f8_100%)]">
-      <header className="border-b border-slate-200 bg-white/80 backdrop-blur">
+    <div className="min-h-screen bg-[#f6f8fa]">
+      <header className="border-b border-[#d0d7de] bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-600 text-white">
+            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[#0969da] text-white">
               <ShieldCheck className="h-5 w-5" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-base font-semibold text-slate-950">PatchGuard</p>
-              <p className="text-sm text-slate-500">CI for AI-generated code</p>
+              <p className="text-sm font-semibold text-[#24292f]">PatchGuard</p>
+              <p className="text-xs text-[#57606a]">CI for AI-generated code</p>
             </div>
           </div>
           <a
             href="https://github.com"
-            className="hidden text-sm font-medium text-slate-500 hover:text-slate-900 sm:inline"
+            className="hidden text-sm font-medium text-[#57606a] hover:text-[#0969da] sm:inline"
           >
             Public GitHub PRs
           </a>
@@ -173,13 +173,13 @@ export default function App() {
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
           <div className="panel overflow-hidden">
-            <div className="border-b border-slate-200 bg-slate-950 px-6 py-5 text-white">
-              <div className="flex items-center gap-2 text-sm font-medium text-emerald-300">
+            <div className="border-b border-[#d0d7de] bg-white px-6 py-5">
+              <div className="flex items-center gap-2 text-sm font-medium text-[#0969da]">
                 <GitPullRequest className="h-4 w-4" aria-hidden="true" />
                 Evidence-backed PR verification
               </div>
-              <h1 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">PatchGuard</h1>
-              <p className="mt-2 max-w-2xl text-base leading-7 text-slate-300">
+              <h1 className="mt-4 text-3xl font-semibold text-[#24292f] sm:text-4xl">PatchGuard</h1>
+              <p className="mt-2 max-w-2xl text-base leading-7 text-[#57606a]">
                 CI for AI-generated code. Submit a public Python PR and get changed-file evidence,
                 Docker test results, static scans, generated-test evidence, and a deterministic
                 merge-risk recommendation.
@@ -187,7 +187,7 @@ export default function App() {
             </div>
 
             <form className="space-y-4 p-6" onSubmit={onSubmit}>
-              <label htmlFor="pr-url" className="block text-sm font-medium text-slate-700">
+              <label htmlFor="pr-url" className="block text-sm font-medium text-[#24292f]">
                 GitHub pull request URL
               </label>
               <div className="flex flex-col gap-3 sm:flex-row">
@@ -196,12 +196,12 @@ export default function App() {
                   value={prUrl}
                   onChange={(event) => setPrUrl(event.target.value)}
                   placeholder="https://github.com/owner/repo/pull/123"
-                  className="min-h-12 flex-1 rounded-lg border border-slate-300 bg-white px-4 text-sm text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  className="min-h-11 flex-1 rounded-md border border-[#d0d7de] bg-white px-3 text-sm text-[#24292f] outline-none transition focus:border-[#0969da] focus:ring-2 focus:ring-[#0969da]/20"
                 />
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#0969da] px-5 text-sm font-semibold text-white transition hover:bg-[#0757b3] disabled:cursor-not-allowed disabled:bg-[#8c959f]"
                 >
                   {isSubmitting ? (
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -211,25 +211,25 @@ export default function App() {
                   Analyze
                 </button>
               </div>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-[#57606a]">
                 The dashboard calls your local FastAPI backend. OpenAI generation is off by default.
               </p>
-              <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
-                <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
+              <div className="grid gap-3 rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4 sm:grid-cols-2">
+                <label className="flex items-center gap-3 text-sm font-medium text-[#24292f]">
                   <input
                     type="checkbox"
                     checked={skipLlm}
                     onChange={(event) => setSkipLlm(event.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    className="h-4 w-4 rounded border-[#d0d7de] text-[#0969da] focus:ring-[#0969da]"
                   />
                   Skip OpenAI tests
                 </label>
-                <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
+                <label className="flex items-center gap-3 text-sm font-medium text-[#24292f]">
                   <input
                     type="checkbox"
                     checked={skipDocker}
                     onChange={(event) => setSkipDocker(event.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    className="h-4 w-4 rounded border-[#d0d7de] text-[#0969da] focus:ring-[#0969da]"
                   />
                   Skip Docker
                 </label>
@@ -286,12 +286,12 @@ function StatusPanel({ analysis, report }: { analysis: AnalysisRecord | null; re
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="section-title">Current step</p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-950">{title}</h2>
+          <h2 className="mt-2 text-2xl font-semibold text-[#24292f]">{title}</h2>
         </div>
         {analysis && !isTerminal ? (
-          <Loader2 className="mt-1 h-6 w-6 animate-spin text-emerald-600" aria-hidden="true" />
+          <Loader2 className="mt-1 h-6 w-6 animate-spin text-[#0969da]" aria-hidden="true" />
         ) : (
-          <CircleDashed className="mt-1 h-6 w-6 text-slate-400" aria-hidden="true" />
+          <CircleDashed className="mt-1 h-6 w-6 text-[#8c959f]" aria-hidden="true" />
         )}
       </div>
 
@@ -305,15 +305,15 @@ function StatusPanel({ analysis, report }: { analysis: AnalysisRecord | null; re
                 className={[
                   "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
                   active
-                    ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                    ? "border-[#0969da] bg-[#ddf4ff] text-[#0969da]"
                     : complete
-                      ? "border-emerald-500 bg-emerald-600 text-white"
-                      : "border-slate-300 bg-white text-slate-400",
+                      ? "border-[#1a7f37] bg-[#1a7f37] text-white"
+                      : "border-[#d0d7de] bg-white text-[#8c959f]",
                 ].join(" ")}
               >
                 {complete ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : index + 1}
               </span>
-              <span className={active ? "font-medium text-slate-950" : "text-sm text-slate-600"}>
+              <span className={active ? "font-medium text-[#24292f]" : "text-sm text-[#57606a]"}>
                 {step.label}
               </span>
             </div>
@@ -322,16 +322,16 @@ function StatusPanel({ analysis, report }: { analysis: AnalysisRecord | null; re
       </div>
 
       {analysis ? (
-        <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-          <p className="font-medium text-slate-900">Analysis ID</p>
+        <div className="mt-6 rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4 text-sm text-[#57606a]">
+          <p className="font-medium text-[#24292f]">Analysis ID</p>
           <p className="mt-1 break-all font-mono text-xs">{analysis.analysis_id}</p>
           {report ? (
-            <a className="mt-3 inline-block font-semibold text-emerald-700 hover:text-emerald-900" href="#patchguard-report">
+            <a className="mt-3 inline-block font-semibold text-[#0969da] hover:text-[#0757b3]" href="#patchguard-report">
               View report
             </a>
           ) : null}
           {waitingForReport ? (
-            <p className="mt-3 text-xs font-medium text-amber-700">
+            <p className="mt-3 text-xs font-medium text-[#9a6700]">
               Analysis is done; loading the final report.
             </p>
           ) : null}
@@ -426,6 +426,16 @@ function ReportView({
 
 function RiskCard({ report }: { report: RiskReport }) {
   const tone = riskTone(report.risk_level);
+  const breakdown = report.risk_breakdown;
+  const dimensions = breakdown
+    ? [
+        ["Change", breakdown.change_size_risk],
+        ["Tests", breakdown.test_coverage_risk],
+        ["Behavior", breakdown.behavioral_risk],
+        ["Security", breakdown.security_risk],
+        ["Uncertainty", breakdown.uncertainty_risk],
+      ]
+    : [];
   return (
     <article className="panel p-6">
       <div className="flex items-center justify-between">
@@ -444,13 +454,31 @@ function RiskCard({ report }: { report: RiskReport }) {
           style={{ width: `${Math.min(100, Math.max(0, report.risk_score))}%` }}
         />
       </div>
-      <div className="mt-6 border-t border-slate-200 pt-5">
+      {dimensions.length > 0 && (
+        <div className="mt-5 space-y-3">
+          {dimensions.map(([label, value]) => (
+            <div key={label}>
+              <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+                <span>{label}</span>
+                <span>{value}</span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-[#6e7781]"
+                  style={{ width: `${Math.min(100, Math.max(0, Number(value)))}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="mt-6 border-t border-[#d0d7de] pt-5">
         <p className="metric-label">Recommendation</p>
-        <p className="mt-2 text-base font-semibold leading-6 text-slate-950">
+        <p className="mt-2 text-base font-semibold leading-6 text-[#24292f]">
           {report.recommendation}
         </p>
-        <p className="mt-2 text-sm text-slate-500">
-          Decision: <span className="font-medium text-slate-700">{report.merge_decision}</span>
+        <p className="mt-2 text-sm text-[#57606a]">
+          Decision: <span className="font-medium text-[#24292f]">{report.merge_decision}</span>
         </p>
       </div>
     </article>
@@ -475,7 +503,7 @@ function PRMetadataCard({ report, analysis }: { report: RiskReport; analysis: An
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="section-title">Pull request</p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-950">{pr.title ?? "Untitled PR"}</h2>
+          <h2 className="mt-2 text-2xl font-semibold text-[#24292f]">{pr.title ?? "Untitled PR"}</h2>
         </div>
         <StatusBadge status={report.status === "complete" ? "passed" : "error"} label={report.status} />
       </div>
@@ -487,12 +515,12 @@ function PRMetadataCard({ report, analysis }: { report: RiskReport; analysis: An
           </div>
         ))}
       </dl>
-      <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-        <p className="font-medium text-slate-900">Source</p>
-        <a className="mt-1 block break-all text-emerald-700 hover:text-emerald-900" href={pr.url}>
+      <div className="mt-6 rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4 text-sm text-[#57606a]">
+        <p className="font-medium text-[#24292f]">Source</p>
+        <a className="mt-1 block break-all text-[#0969da] hover:text-[#0757b3]" href={pr.url}>
           {pr.url}
         </a>
-        {analysis ? <p className="mt-2 text-xs text-slate-500">Updated {formatDate(analysis.updated_at)}</p> : null}
+        {analysis ? <p className="mt-2 text-xs text-[#57606a]">Updated {formatDate(analysis.updated_at)}</p> : null}
       </div>
     </article>
   );
@@ -515,34 +543,34 @@ function RunCard({
     <article className="panel p-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f6f8fa] text-[#57606a]">
             {icon}
           </span>
           <div>
             <p className="section-title">{title}</p>
-            {extra ? <p className="mt-1 text-sm text-slate-500">{extra}</p> : null}
+            {extra ? <p className="mt-1 text-sm text-[#57606a]">{extra}</p> : null}
           </div>
         </div>
         {run ? <StatusBadge status={run.status} /> : <StatusBadge status="skipped" />}
       </div>
       {run ? (
         <div className="mt-5">
-          <p className="text-base font-semibold text-slate-950">{run.summary}</p>
+          <p className="text-base font-semibold text-[#24292f]">{run.summary}</p>
           {run.command ? (
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
               <div>
                 <dt className="metric-label">Exit code</dt>
-                <dd className="mt-1 text-slate-900">{run.command.exit_code ?? "n/a"}</dd>
+                <dd className="mt-1 text-[#24292f]">{run.command.exit_code ?? "n/a"}</dd>
               </div>
               <div>
                 <dt className="metric-label">Duration</dt>
-                <dd className="mt-1 text-slate-900">
+                <dd className="mt-1 text-[#24292f]">
                   {(run.command.duration_seconds ?? 0).toFixed(1)}s
                 </dd>
               </div>
               <div>
                 <dt className="metric-label">Timed out</dt>
-                <dd className="mt-1 text-slate-900">{run.command.timed_out ? "Yes" : "No"}</dd>
+                <dd className="mt-1 text-[#24292f]">{run.command.timed_out ? "Yes" : "No"}</dd>
               </div>
             </dl>
           ) : null}
@@ -557,10 +585,10 @@ function RunCard({
 function ChangedFilesTable({ files }: { files: ChangedFile[] }) {
   return (
     <article className="panel overflow-hidden">
-      <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-5">
+      <div className="flex items-center justify-between gap-4 border-b border-[#d0d7de] px-6 py-5">
         <div>
           <p className="section-title">Changed files</p>
-          <h2 className="mt-1 text-xl font-semibold text-slate-950">{files.length} files</h2>
+          <h2 className="mt-1 text-xl font-semibold text-[#24292f]">{files.length} files</h2>
         </div>
       </div>
       {files.length === 0 ? (
@@ -569,9 +597,9 @@ function ChangedFilesTable({ files }: { files: ChangedFile[] }) {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50">
-              <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <table className="min-w-full divide-y divide-[#d0d7de] text-sm">
+            <thead className="bg-[#f6f8fa]">
+              <tr className="text-left text-xs font-semibold uppercase text-[#57606a]">
                 <th className="px-6 py-3">File</th>
                 <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3">Status</th>
@@ -579,22 +607,22 @@ function ChangedFilesTable({ files }: { files: ChangedFile[] }) {
                 <th className="px-4 py-3 text-right">Deletions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
+            <tbody className="divide-y divide-[#d8dee4] bg-white">
               {files.map((file) => (
                 <tr key={file.filename}>
-                  <td className="max-w-[520px] break-words px-6 py-4 font-mono text-xs text-slate-900">
+                  <td className="max-w-[520px] break-words px-6 py-4 font-mono text-xs text-[#24292f]">
                     {file.filename}
                   </td>
                   <td className="px-4 py-4">
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                    <span className="rounded-full bg-[#f6f8fa] px-2.5 py-1 text-xs font-medium text-[#57606a]">
                       {file.classification ?? "unknown"}
                     </span>
                   </td>
-                  <td className="px-4 py-4 text-slate-600">{file.status}</td>
-                  <td className="px-4 py-4 text-right font-medium text-emerald-700">
+                  <td className="px-4 py-4 text-[#57606a]">{file.status}</td>
+                  <td className="px-4 py-4 text-right font-medium text-[#1a7f37]">
                     +{file.additions ?? 0}
                   </td>
-                  <td className="px-4 py-4 text-right font-medium text-rose-700">
+                  <td className="px-4 py-4 text-right font-medium text-[#cf222e]">
                     -{file.deletions ?? 0}
                   </td>
                 </tr>

@@ -161,6 +161,53 @@ class RiskReason(BaseModel):
     category: str
     score_impact: int
     reason: str
+    severity: Literal["info", "low", "medium", "high", "critical"] = "medium"
+    evidence: list[str] = Field(default_factory=list)
+
+
+class SecurityFindingCounts(BaseModel):
+    critical: int = 0
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+
+
+class RiskInput(BaseModel):
+    changed_files_count: int = 0
+    total_lines_changed: int = 0
+    changed_functions_count: int = 0
+    source_changed: bool = False
+    tests_changed: bool = False
+    dependency_files_changed: bool = False
+    config_files_changed: bool = False
+    security_sensitive_files_changed: bool = False
+    existing_tests_status: Literal["passed", "failed", "skipped", "error", "not_run"] = "not_run"
+    generated_tests_status: Literal["passed", "failed", "skipped", "error", "not_run"] = "not_run"
+    generated_tests_failed_count: int = 0
+    existing_tests_failed_count: int = 0
+    security_findings_by_severity: SecurityFindingCounts = Field(
+        default_factory=SecurityFindingCounts
+    )
+    secrets_detected: bool = False
+    dependency_install_failed: bool = False
+    no_existing_tests_found: bool = False
+    pr_description_missing: bool = False
+    diff_too_large_for_full_analysis: bool = False
+    behavior_changed: bool = False
+    behavior_change_type: str | None = None
+    behavior_risky_categories: list[str] = Field(default_factory=list)
+    behavior_confidence: float | None = None
+
+
+class RiskBreakdown(BaseModel):
+    overall_score: int = 0
+    risk_level: RiskLevel = RiskLevel.LOW
+    change_size_risk: int = 0
+    test_coverage_risk: int = 0
+    behavioral_risk: int = 0
+    security_risk: int = 0
+    uncertainty_risk: int = 0
+    reasons: list[RiskReason] = Field(default_factory=list)
 
 
 class ChangedFunction(BaseModel):
@@ -207,6 +254,7 @@ class RiskReport(BaseModel):
     workspace_path: str | None = None
     risk_score: int = 0
     risk_level: RiskLevel = RiskLevel.LOW
+    risk_breakdown: RiskBreakdown | None = None
     risk_reasons: list[RiskReason] = Field(default_factory=list)
     merge_decision: MergeDecision = MergeDecision.MANUAL_REVIEW
     recommendation: MergeRecommendation = MergeRecommendation.HUMAN_REVIEW
@@ -263,6 +311,7 @@ class PatchGuardReport(BaseModel):
     security_findings: list[SecurityFinding] = Field(default_factory=list)
     risk_score: int = 0
     risk_level: RiskLevel = RiskLevel.LOW
+    risk_breakdown: RiskBreakdown | None = None
     risk_reasons: list[RiskReason] = Field(default_factory=list)
     merge_decision: MergeDecision = MergeDecision.MANUAL_REVIEW
     recommendation: MergeRecommendation = MergeRecommendation.HUMAN_REVIEW

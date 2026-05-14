@@ -38,7 +38,14 @@ def test_pipeline_runs_generated_tests_on_controlled_demo_repo(tmp_path, monkeyp
     generated_run = report.generated_test_results[-1]
     assert generated_run.command is not None
     assert "1 failed" in generated_run.command.stdout_tail
-    assert any(reason.category == "generated_tests" and reason.score_impact == 30 for reason in report.risk_reasons)
+    assert report.risk_score == 70
+    assert report.risk_level.value == "high"
+    assert report.risk_breakdown is not None
+    assert report.risk_breakdown.test_coverage_risk == 100
+    assert any(
+        reason.category == "generated_tests" and reason.score_impact == 100
+        for reason in report.risk_reasons
+    )
     assert report.recommendation == MergeRecommendation.REVIEW_GENERATED_FAILURES
 
 

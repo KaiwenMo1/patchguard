@@ -275,6 +275,7 @@ def _print_skeleton_summary(report: RiskReport) -> None:
     )
     print(f"Changed functions: {len(report.changed_functions)}")
     print(f"Risk: {report.risk_score}/100 ({report.risk_level.value})")
+    _print_risk_breakdown(report)
     print(f"Decision: {report.merge_decision.value}")
     print(f"Recommendation: {report.recommendation.value}")
     if report.risk_reasons:
@@ -291,6 +292,7 @@ def _print_summary(report: PatchGuardReport) -> None:
     print(f"PatchGuard report: {report.report_path}")
     print(f"Status: {report.status}")
     print(f"Risk: {report.risk_score}/100 ({report.risk_level.value})")
+    _print_risk_breakdown(report)
     print(f"Decision: {report.merge_decision.value}")
     print(f"Recommendation: {report.recommendation.value}")
     if report.pr:
@@ -311,6 +313,20 @@ def _print_summary(report: PatchGuardReport) -> None:
         print("Pipeline errors:")
         for error in report.errors:
             print(f"  - {error}")
+
+
+def _print_risk_breakdown(report: RiskReport | PatchGuardReport) -> None:
+    if not report.risk_breakdown:
+        return
+    breakdown = report.risk_breakdown
+    print(
+        "Risk breakdown: "
+        f"change={breakdown.change_size_risk}, "
+        f"tests={breakdown.test_coverage_risk}, "
+        f"behavior={breakdown.behavioral_risk}, "
+        f"security={breakdown.security_risk}, "
+        f"uncertainty={breakdown.uncertainty_risk}"
+    )
 
 
 def _maybe_comment(args: argparse.Namespace, report: RiskReport | PatchGuardReport) -> PRCommentResult | None:

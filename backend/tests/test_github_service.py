@@ -294,7 +294,7 @@ def test_skeleton_report_skips_tests_when_dependency_install_fails(tmp_path) -> 
     assert report.existing_tests.status == "skipped"
     assert "Dependency installation failed" in report.existing_tests.summary
     assert any(reason.category == "dependencies" for reason in report.risk_reasons)
-    assert not any(reason.category == "existing_tests" for reason in report.risk_reasons)
+    assert any(reason.category == "existing_tests" for reason in report.risk_reasons)
 
 
 class FakeCommandRunner:

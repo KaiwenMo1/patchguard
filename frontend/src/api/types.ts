@@ -95,6 +95,19 @@ export interface RiskReason {
   category: string;
   score_impact: number;
   reason: string;
+  severity?: string;
+  evidence?: string[];
+}
+
+export interface RiskBreakdown {
+  overall_score: number;
+  risk_level: RiskLevel;
+  change_size_risk: number;
+  test_coverage_risk: number;
+  behavioral_risk: number;
+  security_risk: number;
+  uncertainty_risk: number;
+  reasons: RiskReason[];
 }
 
 export interface SecurityFinding {
@@ -162,6 +175,7 @@ export interface RiskReport {
   workspace_path?: string | null;
   risk_score: number;
   risk_level: RiskLevel;
+  risk_breakdown?: RiskBreakdown | null;
   risk_reasons: RiskReason[];
   merge_decision: string;
   recommendation: string;

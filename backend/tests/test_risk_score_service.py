@@ -43,22 +43,33 @@ def test_tests_prevent_source_without_tests_reason() -> None:
             ChangedFile(filename="tests/test_app.py", status="modified", changes=8),
         ]
     )
+    report.existing_tests = _existing_run(RunStatus.PASSED)
+    report.generated_test_results = [_generated_run(RunStatus.PASSED, exit_code=0, stdout="1 passed")]
 
     RiskScoreService().score_risk_report(report)
 
-    assert report.risk_score == 0
+    assert report.risk_score == 8
     assert report.risk_level.value == "low"
-    assert report.risk_reasons == []
+    assert report.risk_breakdown is not None
+    assert report.risk_breakdown.test_coverage_risk == 0
+    assert [reason.category for reason in report.risk_reasons] == ["behavioral"]
 
 
 def test_scores_source_change_without_tests() -> None:
     report = _risk_report([ChangedFile(filename="src/app.py", status="modified", changes=60)])
+    report.existing_tests = _existing_run(RunStatus.PASSED)
+    report.generated_test_results = [_generated_run(RunStatus.PASSED, exit_code=0, stdout="1 passed")]
 
     RiskScoreService().score_risk_report(report)
 
-    assert report.risk_score == 20
-    assert report.risk_level.value == "low"
-    assert [reason.category for reason in report.risk_reasons] == ["test_coverage"]
+    assert report.risk_score == 32
+    assert report.risk_level.value == "medium"
+    assert report.risk_breakdown is not None
+    assert report.risk_breakdown.test_coverage_risk == 80
+    assert [reason.category for reason in report.risk_reasons] == [
+        "test_coverage",
+        "behavioral",
+    ]
 
 
 def test_scores_all_prompt_three_file_rules_deterministically() -> None:
@@ -74,15 +85,21 @@ def test_scores_all_prompt_three_file_rules_deterministically() -> None:
 
     RiskScoreService().score_risk_report(report)
 
-    assert report.risk_score == 80
+    assert report.risk_score == 86
     assert report.risk_level.value == "critical"
     assert report.merge_decision.value == "do_not_merge"
-    assert [reason.score_impact for reason in report.risk_reasons] == [15, 15, 20, 20, 10]
+    assert report.risk_breakdown is not None
+    assert report.risk_breakdown.change_size_risk == 90
+    assert report.risk_breakdown.test_coverage_risk == 100
+    assert report.risk_breakdown.behavioral_risk == 100
+    assert report.risk_breakdown.uncertainty_risk == 100
     assert {reason.category for reason in report.risk_reasons} == {
         "change_size",
+        "existing_tests",
         "test_coverage",
-        "security_sensitive",
-        "dependency_config",
+        "behavioral",
+        "security",
+        "uncertainty",
     }
 
 
@@ -122,10 +139,12 @@ def test_security_findings_add_capped_risk() -> None:
 
     RiskScoreService().score_risk_report(report)
 
-    assert report.risk_score == 25
-    assert report.risk_level.value == "low"
-    assert report.risk_reasons[-1].category == "security"
-    assert report.risk_reasons[-1].score_impact == 25
+    assert report.risk_score == 75
+    assert report.risk_level.value == "high"
+    assert report.merge_decision.value == "do_not_merge"
+    assert report.risk_breakdown is not None
+    assert report.risk_breakdown.security_risk == 100
+    assert report.risk_reasons[-1].category == "risk_floor"
 
 
 def test_failed_generated_tests_force_do_not_merge() -> None:
@@ -141,7 +160,8 @@ def test_failed_generated_tests_force_do_not_merge() -> None:
 
     RiskScoreService().score(report)
 
-    assert report.risk_score == 30
+    assert report.risk_score == 70
+    assert report.risk_level.value == "high"
     assert report.merge_decision.value == "manual_review"
     assert report.recommendation == MergeRecommendation.REVIEW_GENERATED_FAILURES
 
@@ -154,9 +174,9 @@ def test_risk_report_scores_generated_test_failure_as_thirty() -> None:
 
     RiskScoreService().score_risk_report(report)
 
-    assert report.risk_score == 30
-    assert report.risk_reasons[-1].category == "generated_tests"
-    assert report.risk_reasons[-1].score_impact == 30
+    assert report.risk_score == 70
+    assert report.risk_level.value == "high"
+    assert any(reason.category == "generated_tests" for reason in report.risk_reasons)
     assert report.recommendation == MergeRecommendation.REVIEW_GENERATED_FAILURES
 
 
@@ -168,9 +188,9 @@ def test_risk_report_scores_generated_test_error_as_fifteen() -> None:
 
     RiskScoreService().score_risk_report(report)
 
-    assert report.risk_score == 15
+    assert report.risk_score == 20
     assert report.risk_reasons[-1].category == "generated_tests"
-    assert report.risk_reasons[-1].score_impact == 15
+    assert report.risk_reasons[-1].score_impact == 65
     assert report.recommendation == MergeRecommendation.LIKELY_SAFE
 
 
@@ -219,6 +239,28 @@ def test_recommendation_blocks_high_security_findings() -> None:
     assert report.recommendation == MergeRecommendation.DO_NOT_MERGE_SECURITY
 
 
+def test_dependency_failure_raises_uncertainty_risk() -> None:
+    report = _risk_report([ChangedFile(filename="src/app.py", status="modified", changes=4)])
+    report.dependency_install = ToolRun(
+        name="install repository dependencies",
+        kind="dependency_install",
+        status=RunStatus.FAILED,
+        summary="pip install failed",
+    )
+    report.existing_tests = ToolRun(
+        name="run existing pytest suite",
+        kind="existing_tests",
+        status=RunStatus.SKIPPED,
+        summary="Dependency installation failed; existing tests were not run",
+    )
+
+    RiskScoreService().score_risk_report(report)
+
+    assert report.risk_breakdown is not None
+    assert report.risk_breakdown.uncertainty_risk == 100
+    assert any(reason.category == "uncertainty" for reason in report.risk_reasons)
+
+
 def _risk_report(changed_files: list[ChangedFile]) -> RiskReport:
     return RiskReport(
         pr=PullRequestInfo(
@@ -228,6 +270,15 @@ def _risk_report(changed_files: list[ChangedFile]) -> RiskReport:
             url="https://github.com/owner/repo/pull/1",
         ),
         changed_files=changed_files,
+    )
+
+
+def _existing_run(status: RunStatus) -> ToolRun:
+    return ToolRun(
+        name="run existing pytest suite",
+        kind="existing_tests",
+        status=status,
+        summary=f"existing tests {status.value}",
     )
 
 
