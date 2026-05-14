@@ -21,7 +21,7 @@ docker build -t patchguard-python-sandbox:latest -f sandbox/python/Dockerfile sa
 patchguard analyze-demo examples/demo_security_bug \
   --out report.json \
   --skip-llm
-
+```
 ## Why PatchGuard?
 
 AI-generated code often looks plausible while quietly changing behavior, weakening validation, or missing tests. A review comment is useful, but it is not evidence.
