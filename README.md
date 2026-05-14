@@ -271,14 +271,6 @@ Known limitations:
 - GitHub App installation flow.
 - Report history with SQLite-backed API storage.
 
-## Resume Bullets
-
-- Built **PatchGuard**, an evidence-based PR verification tool for AI-generated Python code using GitHub API integration, Docker sandboxing, pytest, Ruff, Bandit, FastAPI, and React.
-- Designed a deterministic merge-risk scoring pipeline that combines changed-file classification, generated-test evidence, existing test results, and security findings.
-- Implemented safe local execution for untrusted PR code with Docker resource limits, disabled networking, command timeouts, and partial-report failure handling.
-- Added optional LLM-generated pytest regression tests with strict post-processing and no fake pass/fail results.
-- Shipped a package-friendly CLI, GitHub Action example, optional PR comment bot, and dashboard for end-to-end developer workflow demos.
-
 ## Development
 
 Run backend tests:
@@ -305,5 +297,3 @@ patchguard analyze --help
 ```
 
 ## License
-
-Add a license before publishing the repository.
