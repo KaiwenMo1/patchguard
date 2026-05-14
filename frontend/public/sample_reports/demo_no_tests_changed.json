@@ -1,0 +1,457 @@
+{
+  "version": "0.1.0",
+  "generated_at": "2026-05-14T17:40:12.241721Z",
+  "status": "complete",
+  "errors": [],
+  "pr": {
+    "owner": "patchguard",
+    "repo": "demo_no_tests_changed",
+    "number": 3,
+    "url": "local://examples/demo_no_tests_changed/pull/3",
+    "title": "Behavior change without matching tests",
+    "author": "patchguard-demo",
+    "state": "open",
+    "is_draft": false,
+    "base_ref": "main",
+    "base_sha": "demo-base",
+    "base_repo_full_name": "patchguard/demo_no_tests_changed",
+    "head_ref": "discount-rounding-change",
+    "head_sha": "demo-head",
+    "head_repo_full_name": "patchguard/demo_no_tests_changed",
+    "additions": 1,
+    "deletions": 1,
+    "changed_files_count": 1
+  },
+  "changed_files": [
+    {
+      "filename": "notests_demo/discounts.py",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "changes": 2,
+      "patch": "@@ -1,5 +1,5 @@\n def apply_discount(price: float, percent: float) -> float:\n     \"\"\"Apply a percentage discount and round to cents.\"\"\"\n     discounted = price * (1 - percent / 100)\n-    return round(discounted, 2)\n+    return int(discounted)",
+      "classification": "source",
+      "previous_filename": null,
+      "raw_url": null,
+      "blob_url": null
+    }
+  ],
+  "changed_functions": [
+    {
+      "file_path": "notests_demo/discounts.py",
+      "qualified_name": "apply_discount",
+      "symbol_type": "function",
+      "start_line": 1,
+      "end_line": 4,
+      "source_code": "def apply_discount(price: float, percent: float) -> float:\n    \"\"\"Apply a percentage discount and round to cents.\"\"\"\n    discounted = price * (1 - percent / 100)\n    return int(discounted)",
+      "changed_lines": [
+        4
+      ],
+      "fallback": false,
+      "parse_error": null
+    }
+  ],
+  "behavioral_contract": {
+    "intended_new_behaviors": [],
+    "existing_behaviors_to_preserve": [],
+    "edge_cases_to_test": [],
+    "invalid_inputs_to_test": [],
+    "contract_uncertainties": [
+      "Behavioral contract extraction disabled by --skip-llm"
+    ],
+    "confidence": 0.0
+  },
+  "contract_extraction": {
+    "name": "extract behavioral contract",
+    "kind": "contract_extraction",
+    "status": "skipped",
+    "summary": "Behavioral contract extraction disabled by --skip-llm",
+    "command": {
+      "command": [
+        "openai",
+        "responses",
+        "create"
+      ],
+      "exit_code": null,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "duration_seconds": 0.0,
+      "timed_out": false,
+      "skipped": true,
+      "skip_reason": "Behavioral contract extraction disabled by --skip-llm"
+    },
+    "findings_count": 0
+  },
+  "generated_tests": [],
+  "generated_test_metadata": [],
+  "failure_mappings": [],
+  "test_generation": {
+    "name": "generate LLM pytest tests",
+    "kind": "test_generation",
+    "status": "skipped",
+    "summary": "LLM test generation disabled by --skip-llm",
+    "command": {
+      "command": [
+        "openai",
+        "responses",
+        "create"
+      ],
+      "exit_code": null,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "duration_seconds": 0.0,
+      "timed_out": false,
+      "skipped": true,
+      "skip_reason": "LLM test generation disabled by --skip-llm"
+    },
+    "findings_count": 0
+  },
+  "generated_test_results": [
+    {
+      "name": "run generated PatchGuard tests",
+      "kind": "generated_tests",
+      "status": "skipped",
+      "summary": "LLM test generation disabled by --skip-llm",
+      "command": {
+        "command": [
+          "docker",
+          "run",
+          "...",
+          "python -m pytest -q .patchguard/generated_tests"
+        ],
+        "exit_code": null,
+        "stdout_tail": "",
+        "stderr_tail": "",
+        "duration_seconds": 0.0,
+        "timed_out": false,
+        "skipped": true,
+        "skip_reason": "LLM test generation disabled by --skip-llm"
+      },
+      "findings_count": 0
+    }
+  ],
+  "test_results": [
+    {
+      "name": "run existing pytest suite",
+      "status": "skipped",
+      "command": "docker run --rm --network none --cpus 2 --memory 1g -v /home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_no_tests_changed-20260514T174012238934Z/repo:/app -w /app patchguard-python-sandbox:latest bash -lc python -m pytest -q",
+      "stdout": "\nno tests ran in 0.44s\n",
+      "stderr": ""
+    }
+  ],
+  "security_findings": [],
+  "static_analysis_results": [
+    {
+      "name": "ruff check",
+      "kind": "static_analysis",
+      "status": "passed",
+      "summary": "command completed successfully",
+      "command": {
+        "command": [
+          "docker",
+          "run",
+          "--rm",
+          "--network",
+          "none",
+          "--cpus",
+          "2",
+          "--memory",
+          "1g",
+          "-v",
+          "/home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_no_tests_changed-20260514T174012238934Z/repo:/app",
+          "-w",
+          "/app",
+          "patchguard-python-sandbox:latest",
+          "bash",
+          "-lc",
+          "python -m ruff check --output-format=json ."
+        ],
+        "exit_code": 0,
+        "stdout_tail": "[]",
+        "stderr_tail": "",
+        "duration_seconds": 0.366,
+        "timed_out": false,
+        "skipped": false,
+        "skip_reason": null
+      },
+      "findings_count": 0
+    },
+    {
+      "name": "bandit security scan",
+      "kind": "security_scan",
+      "status": "passed",
+      "summary": "command completed successfully",
+      "command": {
+        "command": [
+          "docker",
+          "run",
+          "--rm",
+          "--network",
+          "none",
+          "--cpus",
+          "2",
+          "--memory",
+          "1g",
+          "-v",
+          "/home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_no_tests_changed-20260514T174012238934Z/repo:/app",
+          "-w",
+          "/app",
+          "patchguard-python-sandbox:latest",
+          "bash",
+          "-lc",
+          "python -m bandit -r . -f json -q"
+        ],
+        "exit_code": 0,
+        "stdout_tail": "{\n  \"errors\": [],\n  \"generated_at\": \"2026-05-14T17:40:15Z\",\n  \"metrics\": {\n    \"./notests_demo/__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 2,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"./notests_demo/discounts.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 4,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"_totals\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 6,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    }\n  },\n  \"results\": []\n}",
+        "stderr_tail": "",
+        "duration_seconds": 0.74,
+        "timed_out": false,
+        "skipped": false,
+        "skip_reason": null
+      },
+      "findings_count": 0
+    }
+  ],
+  "static_findings": [],
+  "clone_results": [],
+  "sandbox_results": [
+    {
+      "name": "ensure python sandbox image",
+      "kind": "docker_build",
+      "status": "passed",
+      "summary": "Docker sandbox image already exists",
+      "command": {
+        "command": [
+          "docker",
+          "image",
+          "inspect",
+          "patchguard-python-sandbox:latest"
+        ],
+        "exit_code": 0,
+        "stdout_tail": "[\n    {\n        \"Id\": \"sha256:fc6a33a2491097f7d827d377522a3634fe04bd24912bc8904033529978b5bb37\",\n        \"RepoTags\": [\n            \"patchguard-python-sandbox:latest\"\n        ],\n        \"RepoDigests\": [\n            \"patchguard-python-sandbox@sha256:fc6a33a2491097f7d827d377522a3634fe04bd24912bc8904033529978b5bb37\"\n        ],\n        \"Comment\": \"buildkit.dockerfile.v0\",\n        \"Created\": \"2026-05-12T02:01:45.088208872Z\",\n        \"Config\": {\n            \"Env\": [\n                \"PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"LANG=C.UTF-8\",\n                \"GPG_KEY=A035C8C19219BA821ECEA86B64E628F8D684696D\",\n                \"PYTHON_VERSION=3.11.15\",\n                \"PYTHON_SHA256=272179ddd9a2e41a0fc8e42e33dfbdca0b3711aa5abf372d3f2d51543d09b625\",\n                \"PYTHONDONTWRITEBYTECODE=1\",\n                \"PYTHONUNBUFFERED=1\",\n                \"PIP_DISABLE_PIP_VERSION_CHECK=1\"\n            ],\n            \"Cmd\": [\n                \"python3\"\n            ],\n            \"WorkingDir\": \"/app\"\n        },\n        \"Architecture\": \"amd64\",\n        \"Os\": \"linux\",\n        \"Size\": 68898528,\n        \"RootFS\": {\n            \"Type\": \"layers\",\n            \"Layers\": [\n                \"sha256:79dd1f4c855cd061f687a994426634cf5f84c8ecdbc66c7a7d118e828dd93c99\",\n                \"sha256:2e53cb234c597e3f6a8f896df5efafd6ceca83645632661f2e32cd7144b43738\",\n                \"sha256:799edc77eb3d21542943122b97c5ba1e80c2a1eb3d222e23196717126398ef61\",\n                \"sha256:94e760ec30748f73d19bcb5d4da140b8dde956299eac18e3372d89236f56c995\",\n                \"sha256:620878ea0ceb365960aed2679a80b3db80b8d383e397f9d0aeafe1d8af066c3e\",\n                \"sha256:f3cbeed2976a94abfbcd04743e62de3f07b8dc76f60b8da8b19bce8164efa5ff\"\n            ]\n        },\n        \"Metadata\": {\n            \"LastTagTime\": \"2026-05-14T01:26:07.775487893Z\"\n        },\n        \"Descriptor\": {\n            \"mediaType\": \"application/vnd.oci.image.index.v1+json\",\n            \"digest\": \"sha256:fc6a33a2491097f7d827d377522a3634fe04bd24912bc8904033529978b5bb37\",\n            \"size\": 856\n        },\n        \"Identity\": {\n            \"Build\": [\n                {\n                    \"Ref\": \"ydzr6nskobzkyv0edznqvyd9n\",\n                    \"CreatedAt\": \"2026-05-14T01:26:07.793490422Z\"\n                }\n            ]\n        }\n    }\n]\n",
+        "stderr_tail": "",
+        "duration_seconds": 0.037,
+        "timed_out": false,
+        "skipped": false,
+        "skip_reason": null
+      },
+      "findings_count": 0
+    },
+    {
+      "name": "install repository dependencies",
+      "kind": "dependency_install",
+      "status": "passed",
+      "summary": "command completed successfully",
+      "command": {
+        "command": [
+          "docker",
+          "run",
+          "--rm",
+          "--network",
+          "none",
+          "--cpus",
+          "2",
+          "--memory",
+          "1g",
+          "-v",
+          "/home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_no_tests_changed-20260514T174012238934Z/repo:/app",
+          "-w",
+          "/app",
+          "patchguard-python-sandbox:latest",
+          "bash",
+          "-lc",
+          "set -o pipefail\nif [ -f requirements.txt ]; then\n  python -m pip install -r requirements.txt\nelif [ -f pyproject.toml ] || [ -f setup.py ]; then\n  python -m pip install -e .\nelse\n  echo \"No requirements.txt, pyproject.toml, or setup.py found; skipping dependency install\"\nfi"
+        ],
+        "exit_code": 0,
+        "stdout_tail": "",
+        "stderr_tail": "WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.\n",
+        "duration_seconds": 0.91,
+        "timed_out": false,
+        "skipped": false,
+        "skip_reason": null
+      },
+      "findings_count": 0
+    }
+  ],
+  "dependency_install": {
+    "name": "install repository dependencies",
+    "kind": "dependency_install",
+    "status": "passed",
+    "summary": "command completed successfully",
+    "command": {
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--cpus",
+        "2",
+        "--memory",
+        "1g",
+        "-v",
+        "/home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_no_tests_changed-20260514T174012238934Z/repo:/app",
+        "-w",
+        "/app",
+        "patchguard-python-sandbox:latest",
+        "bash",
+        "-lc",
+        "set -o pipefail\nif [ -f requirements.txt ]; then\n  python -m pip install -r requirements.txt\nelif [ -f pyproject.toml ] || [ -f setup.py ]; then\n  python -m pip install -e .\nelse\n  echo \"No requirements.txt, pyproject.toml, or setup.py found; skipping dependency install\"\nfi"
+      ],
+      "exit_code": 0,
+      "stdout_tail": "",
+      "stderr_tail": "WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.\n",
+      "duration_seconds": 0.91,
+      "timed_out": false,
+      "skipped": false,
+      "skip_reason": null
+    },
+    "findings_count": 0
+  },
+  "existing_tests": {
+    "name": "run existing pytest suite",
+    "kind": "existing_tests",
+    "status": "skipped",
+    "summary": "pytest found no tests",
+    "command": {
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--cpus",
+        "2",
+        "--memory",
+        "1g",
+        "-v",
+        "/home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_no_tests_changed-20260514T174012238934Z/repo:/app",
+        "-w",
+        "/app",
+        "patchguard-python-sandbox:latest",
+        "bash",
+        "-lc",
+        "python -m pytest -q"
+      ],
+      "exit_code": 5,
+      "stdout_tail": "\nno tests ran in 0.44s\n",
+      "stderr_tail": "",
+      "duration_seconds": 1.204,
+      "timed_out": false,
+      "skipped": false,
+      "skip_reason": null
+    },
+    "findings_count": 0
+  },
+  "workspace_path": null,
+  "risk_score": 44,
+  "risk_level": "medium",
+  "risk_breakdown": {
+    "overall_score": 44,
+    "risk_level": "medium",
+    "change_size_risk": 0,
+    "test_coverage_risk": 100,
+    "behavioral_risk": 30,
+    "security_risk": 0,
+    "uncertainty_risk": 65,
+    "reasons": [
+      {
+        "category": "existing_tests",
+        "score_impact": 35,
+        "reason": "Existing tests did not produce pass/fail evidence",
+        "severity": "medium",
+        "evidence": [
+          "status=skipped"
+        ]
+      },
+      {
+        "category": "test_coverage",
+        "score_impact": 80,
+        "reason": "Source files changed without test files changing",
+        "severity": "high",
+        "evidence": []
+      },
+      {
+        "category": "behavioral",
+        "score_impact": 30,
+        "reason": "Python source behavior changed",
+        "severity": "low",
+        "evidence": []
+      },
+      {
+        "category": "uncertainty",
+        "score_impact": 40,
+        "reason": "Existing test evidence is missing",
+        "severity": "medium",
+        "evidence": [
+          "status=skipped"
+        ]
+      },
+      {
+        "category": "uncertainty",
+        "score_impact": 25,
+        "reason": "Generated regression tests did not run",
+        "severity": "low",
+        "evidence": [
+          "status=skipped"
+        ]
+      }
+    ]
+  },
+  "risk_reasons": [
+    {
+      "category": "existing_tests",
+      "score_impact": 35,
+      "reason": "Existing tests did not produce pass/fail evidence",
+      "severity": "medium",
+      "evidence": [
+        "status=skipped"
+      ]
+    },
+    {
+      "category": "test_coverage",
+      "score_impact": 80,
+      "reason": "Source files changed without test files changing",
+      "severity": "high",
+      "evidence": []
+    },
+    {
+      "category": "behavioral",
+      "score_impact": 30,
+      "reason": "Python source behavior changed",
+      "severity": "low",
+      "evidence": []
+    },
+    {
+      "category": "uncertainty",
+      "score_impact": 40,
+      "reason": "Existing test evidence is missing",
+      "severity": "medium",
+      "evidence": [
+        "status=skipped"
+      ]
+    },
+    {
+      "category": "uncertainty",
+      "score_impact": 25,
+      "reason": "Generated regression tests did not run",
+      "severity": "low",
+      "evidence": [
+        "status=skipped"
+      ]
+    }
+  ],
+  "policy_decision": {
+    "decision": "warn",
+    "reasons": [
+      "One or more evidence steps were skipped or incomplete."
+    ],
+    "triggered_rules": [
+      "partial_evidence"
+    ],
+    "config_path": null
+  },
+  "merge_decision": "merge_with_caution",
+  "recommendation": "Likely safe to merge after normal review.",
+  "report_path": "examples/sample_reports/demo_no_tests_changed.json"
+}

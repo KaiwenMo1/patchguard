@@ -7,6 +7,7 @@ import {
   Code2,
   FileCode2,
   GitPullRequest,
+  ListChecks,
   Loader2,
   Play,
   ShieldAlert,
@@ -17,11 +18,20 @@ import {
 import { FormEvent, MutableRefObject, ReactNode, useEffect, useRef, useState } from "react";
 
 import { ApiError, getAnalysis, getReport, submitAnalysis } from "./api/client";
+import {
+  DEMO_REPORTS,
+  STATIC_DEMO_MODE,
+  analysisRecordForDemo,
+  loadDemoReport,
+} from "./demoReports";
 import type {
   AnalysisRecord,
   AnalysisStatus,
+  BehavioralContract,
   ChangedFile,
+  FailureMapping,
   GeneratedTest,
+  PolicyGateDecision,
   RiskLevel,
   RiskReport,
   RunStatus,
@@ -52,6 +62,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [skipLlm, setSkipLlm] = useState(true);
   const [skipDocker, setSkipDocker] = useState(false);
+  const [selectedDemoId, setSelectedDemoId] = useState(DEMO_REPORTS[0].id);
   const reportRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -111,6 +122,33 @@ export default function App() {
   }, [analysisId]);
 
   useEffect(() => {
+    if (!STATIC_DEMO_MODE) {
+      return;
+    }
+
+    let cancelled = false;
+    const loadInitialDemo = async () => {
+      try {
+        const demo = DEMO_REPORTS[0];
+        const demoReport = await loadDemoReport(demo.id);
+        if (!cancelled) {
+          setReport(demoReport);
+          setAnalysis(analysisRecordForDemo(demo, demoReport));
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          setError(errorText(caught));
+        }
+      }
+    };
+
+    void loadInitialDemo();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (report) {
       reportRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
@@ -118,6 +156,11 @@ export default function App() {
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (STATIC_DEMO_MODE) {
+      await loadSelectedDemo(selectedDemoId);
+      return;
+    }
+
     const trimmedUrl = prUrl.trim();
     if (!trimmedUrl) {
       setError("Enter a public GitHub pull request URL.");
@@ -139,6 +182,22 @@ export default function App() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
+    } catch (caught) {
+      setError(errorText(caught));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const loadSelectedDemo = async (demoId: string) => {
+    const demo = DEMO_REPORTS.find((item) => item.id === demoId) ?? DEMO_REPORTS[0];
+    setIsSubmitting(true);
+    setError(null);
+    setAnalysisId(null);
+    try {
+      const demoReport = await loadDemoReport(demo.id);
+      setReport(demoReport);
+      setAnalysis(analysisRecordForDemo(demo, demoReport));
     } catch (caught) {
       setError(errorText(caught));
     } finally {
@@ -187,53 +246,117 @@ export default function App() {
             </div>
 
             <form className="space-y-4 p-6" onSubmit={onSubmit}>
-              <label htmlFor="pr-url" className="block text-sm font-medium text-[#24292f]">
-                GitHub pull request URL
-              </label>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <input
-                  id="pr-url"
-                  value={prUrl}
-                  onChange={(event) => setPrUrl(event.target.value)}
-                  placeholder="https://github.com/owner/repo/pull/123"
-                  className="min-h-11 flex-1 rounded-md border border-[#d0d7de] bg-white px-3 text-sm text-[#24292f] outline-none transition focus:border-[#0969da] focus:ring-2 focus:ring-[#0969da]/20"
-                />
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#0969da] px-5 text-sm font-semibold text-white transition hover:bg-[#0757b3] disabled:cursor-not-allowed disabled:bg-[#8c959f]"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <Play className="h-4 w-4" aria-hidden="true" />
-                  )}
-                  Analyze
-                </button>
-              </div>
-              <p className="text-sm text-[#57606a]">
-                The dashboard calls your local FastAPI backend. OpenAI generation is off by default.
-              </p>
-              <div className="grid gap-3 rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4 sm:grid-cols-2">
-                <label className="flex items-center gap-3 text-sm font-medium text-[#24292f]">
-                  <input
-                    type="checkbox"
-                    checked={skipLlm}
-                    onChange={(event) => setSkipLlm(event.target.checked)}
-                    className="h-4 w-4 rounded border-[#d0d7de] text-[#0969da] focus:ring-[#0969da]"
-                  />
-                  Skip OpenAI tests
-                </label>
-                <label className="flex items-center gap-3 text-sm font-medium text-[#24292f]">
-                  <input
-                    type="checkbox"
-                    checked={skipDocker}
-                    onChange={(event) => setSkipDocker(event.target.checked)}
-                    className="h-4 w-4 rounded border-[#d0d7de] text-[#0969da] focus:ring-[#0969da]"
-                  />
-                  Skip Docker
-                </label>
-              </div>
+              {STATIC_DEMO_MODE ? (
+                <>
+                  <label htmlFor="demo-report" className="block text-sm font-medium text-[#24292f]">
+                    Sample report
+                  </label>
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <select
+                      id="demo-report"
+                      value={selectedDemoId}
+                      onChange={(event) => setSelectedDemoId(event.target.value)}
+                      className="min-h-11 flex-1 rounded-md border border-[#d0d7de] bg-white px-3 text-sm text-[#24292f] outline-none transition focus:border-[#0969da] focus:ring-2 focus:ring-[#0969da]/20"
+                    >
+                      {DEMO_REPORTS.map((demo) => (
+                        <option key={demo.id} value={demo.id}>
+                          {demo.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#0969da] px-5 text-sm font-semibold text-white transition hover:bg-[#0757b3] disabled:cursor-not-allowed disabled:bg-[#8c959f]"
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Play className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      Load demo
+                    </button>
+                  </div>
+                  <div className="rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4">
+                    <p className="text-sm font-medium text-[#24292f]">Static GitHub Pages mode</p>
+                    <p className="mt-1 text-sm leading-6 text-[#57606a]">
+                      This page loads real sample JSON reports generated by the PatchGuard CLI. It
+                      does not call FastAPI, Docker, GitHub, or OpenAI.
+                    </p>
+                    <div className="mt-3 grid gap-2">
+                      {DEMO_REPORTS.map((demo) => (
+                        <button
+                          key={demo.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedDemoId(demo.id);
+                            void loadSelectedDemo(demo.id);
+                          }}
+                          className={[
+                            "rounded-md border px-3 py-2 text-left text-sm transition",
+                            selectedDemoId === demo.id
+                              ? "border-[#0969da] bg-[#ddf4ff] text-[#24292f]"
+                              : "border-[#d0d7de] bg-white text-[#57606a] hover:border-[#0969da]",
+                          ].join(" ")}
+                        >
+                          <span className="block font-medium text-[#24292f]">{demo.label}</span>
+                          <span className="mt-1 block text-xs leading-5">{demo.description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <label htmlFor="pr-url" className="block text-sm font-medium text-[#24292f]">
+                    GitHub pull request URL
+                  </label>
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <input
+                      id="pr-url"
+                      value={prUrl}
+                      onChange={(event) => setPrUrl(event.target.value)}
+                      placeholder="https://github.com/owner/repo/pull/123"
+                      className="min-h-11 flex-1 rounded-md border border-[#d0d7de] bg-white px-3 text-sm text-[#24292f] outline-none transition focus:border-[#0969da] focus:ring-2 focus:ring-[#0969da]/20"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#0969da] px-5 text-sm font-semibold text-white transition hover:bg-[#0757b3] disabled:cursor-not-allowed disabled:bg-[#8c959f]"
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Play className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      Analyze
+                    </button>
+                  </div>
+                  <p className="text-sm text-[#57606a]">
+                    The dashboard calls your local FastAPI backend. OpenAI generation is off by default.
+                  </p>
+                  <div className="grid gap-3 rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4 sm:grid-cols-2">
+                    <label className="flex items-center gap-3 text-sm font-medium text-[#24292f]">
+                      <input
+                        type="checkbox"
+                        checked={skipLlm}
+                        onChange={(event) => setSkipLlm(event.target.checked)}
+                        className="h-4 w-4 rounded border-[#d0d7de] text-[#0969da] focus:ring-[#0969da]"
+                      />
+                      Skip OpenAI tests
+                    </label>
+                    <label className="flex items-center gap-3 text-sm font-medium text-[#24292f]">
+                      <input
+                        type="checkbox"
+                        checked={skipDocker}
+                        onChange={(event) => setSkipDocker(event.target.checked)}
+                        className="h-4 w-4 rounded border-[#d0d7de] text-[#0969da] focus:ring-[#0969da]"
+                      />
+                      Skip Docker
+                    </label>
+                  </div>
+                </>
+              )}
             </form>
           </div>
 
@@ -352,6 +475,7 @@ function ReportView({
 }) {
   const generatedTests = report.generated_tests ?? [];
   const securityFindings = report.security_findings ?? [];
+  const failureMappings = report.failure_mappings ?? [];
   const logRuns = collectLogRuns(report);
 
   return (
@@ -364,10 +488,13 @@ function ReportView({
         </Notice>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="grid gap-6 xl:grid-cols-[320px_320px_minmax(0,1fr)]">
         <RiskCard report={report} />
+        <PolicyCard report={report} />
         <PRMetadataCard report={report} analysis={analysis} />
       </div>
+
+      <BehavioralContractCard report={report} />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <RunCard
@@ -385,6 +512,7 @@ function ReportView({
         />
       </div>
 
+      {failureMappings.length > 0 ? <FailureMappings mappings={failureMappings} /> : null}
       <ChangedFilesTable files={report.changed_files} />
       <RiskReasons reasons={report.risk_reasons} />
       <SecurityFindings findings={securityFindings} />
@@ -446,9 +574,9 @@ function RiskCard({ report }: { report: RiskReport }) {
       </div>
       <div className="mt-5 flex items-end gap-3">
         <span className={`text-6xl font-semibold ${tone.text}`}>{report.risk_score}</span>
-        <span className="pb-2 text-lg font-medium text-slate-500">/100</span>
+        <span className="pb-2 text-lg font-medium text-[#57606a]">/100</span>
       </div>
-      <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-100">
+      <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-[#eaeef2]">
         <div
           className={`h-full rounded-full ${tone.bar}`}
           style={{ width: `${Math.min(100, Math.max(0, report.risk_score))}%` }}
@@ -458,11 +586,11 @@ function RiskCard({ report }: { report: RiskReport }) {
         <div className="mt-5 space-y-3">
           {dimensions.map(([label, value]) => (
             <div key={label}>
-              <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+              <div className="flex items-center justify-between text-xs font-medium text-[#57606a]">
                 <span>{label}</span>
                 <span>{value}</span>
               </div>
-              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#eaeef2]">
                 <div
                   className="h-full rounded-full bg-[#6e7781]"
                   style={{ width: `${Math.min(100, Math.max(0, Number(value)))}%` }}
@@ -481,6 +609,47 @@ function RiskCard({ report }: { report: RiskReport }) {
           Decision: <span className="font-medium text-[#24292f]">{report.merge_decision}</span>
         </p>
       </div>
+    </article>
+  );
+}
+
+function PolicyCard({ report }: { report: RiskReport }) {
+  const policy = report.policy_decision;
+  const tone = policyTone(policy?.decision ?? "warn");
+  const reasons = policy?.reasons ?? ["Policy gate did not run for this report."];
+  const rules = policy?.triggered_rules ?? [];
+
+  return (
+    <article className="panel p-6">
+      <div className="flex items-center justify-between">
+        <p className="section-title">Policy gate</p>
+        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone.badge}`}>
+          {policy?.decision ?? "unknown"}
+        </span>
+      </div>
+      <div className="mt-5 flex items-center gap-3">
+        <span className={`flex h-10 w-10 items-center justify-center rounded-md ${tone.icon}`}>
+          {tone.symbol}
+        </span>
+        <div>
+          <p className="text-base font-semibold text-[#24292f]">{tone.title}</p>
+          <p className="mt-1 text-sm text-[#57606a]">
+            {rules.length} triggered rule{rules.length === 1 ? "" : "s"}
+          </p>
+        </div>
+      </div>
+      <ul className="mt-5 space-y-2 text-sm text-[#57606a]">
+        {reasons.slice(0, 3).map((reason) => (
+          <li key={reason} className="rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-3">
+            {reason}
+          </li>
+        ))}
+      </ul>
+      {policy?.config_path ? (
+        <p className="mt-4 break-all text-xs text-[#57606a]">Config: {policy.config_path}</p>
+      ) : (
+        <p className="mt-4 text-xs text-[#57606a]">Using default policy.</p>
+      )}
     </article>
   );
 }
@@ -511,7 +680,7 @@ function PRMetadataCard({ report, analysis }: { report: RiskReport; analysis: An
         {metadata.map(([label, value]) => (
           <div key={label}>
             <dt className="metric-label">{label}</dt>
-            <dd className="mt-1 break-words text-sm font-medium text-slate-900">{value}</dd>
+            <dd className="mt-1 break-words text-sm font-medium text-[#24292f]">{value}</dd>
           </div>
         ))}
       </dl>
@@ -523,6 +692,106 @@ function PRMetadataCard({ report, analysis }: { report: RiskReport; analysis: An
         {analysis ? <p className="mt-2 text-xs text-[#57606a]">Updated {formatDate(analysis.updated_at)}</p> : null}
       </div>
     </article>
+  );
+}
+
+function BehavioralContractCard({ report }: { report: RiskReport }) {
+  const contract = report.behavioral_contract ?? emptyBehavioralContract();
+  const run = report.contract_extraction;
+  const itemCount =
+    contract.intended_new_behaviors.length
+    + contract.existing_behaviors_to_preserve.length
+    + contract.edge_cases_to_test.length
+    + contract.invalid_inputs_to_test.length
+    + contract.contract_uncertainties.length;
+  const confidence = Math.round((contract.confidence ?? 0) * 100);
+
+  return (
+    <article className="panel overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#d0d7de] px-6 py-5">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#ddf4ff] text-[#0969da]">
+            <ListChecks className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="section-title">Behavioral contract</p>
+            <p className="mt-1 text-sm text-[#57606a]">
+              {itemCount} contract item{itemCount === 1 ? "" : "s"} extracted for test targeting
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium text-[#57606a]">Confidence {confidence}%</span>
+          {run ? <StatusBadge status={run.status} /> : <StatusBadge status="skipped" />}
+        </div>
+      </div>
+      <div className="px-6 py-5">
+        {run ? <p className="mb-5 text-sm text-[#57606a]">{run.summary}</p> : null}
+        <div className="mb-5 h-2 overflow-hidden rounded-full bg-[#eaeef2]">
+          <div
+            className="h-full rounded-full bg-[#0969da]"
+            style={{ width: `${Math.min(100, Math.max(0, confidence))}%` }}
+          />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <ContractList
+            title="Intended new behavior"
+            values={contract.intended_new_behaviors}
+            emptyText="No new behavior was extracted."
+          />
+          <ContractList
+            title="Behavior to preserve"
+            values={contract.existing_behaviors_to_preserve}
+            emptyText="No preservation behavior was extracted."
+          />
+          <ContractList
+            title="Edge cases"
+            values={contract.edge_cases_to_test}
+            emptyText="No edge cases were extracted."
+          />
+          <ContractList
+            title="Invalid inputs"
+            values={contract.invalid_inputs_to_test}
+            emptyText="No invalid-input cases were extracted."
+          />
+        </div>
+        {contract.contract_uncertainties.length > 0 ? (
+          <div className="mt-4 rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4">
+            <p className="text-sm font-semibold text-[#24292f]">Uncertainties</p>
+            <ul className="mt-3 space-y-2 text-sm text-[#57606a]">
+              {contract.contract_uncertainties.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function ContractList({
+  title,
+  values,
+  emptyText,
+}: {
+  title: string;
+  values: string[];
+  emptyText: string;
+}) {
+  return (
+    <div className="rounded-md border border-[#d0d7de] p-4">
+      <p className="text-sm font-semibold text-[#24292f]">{title}</p>
+      {values.length === 0 ? (
+        <p className="mt-3 text-sm text-[#57606a]">{emptyText}</p>
+      ) : (
+        <ul className="mt-3 space-y-2 text-sm leading-6 text-[#57606a]">
+          {values.map((value) => (
+            <li key={value}>{value}</li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -578,6 +847,55 @@ function RunCard({
       ) : (
         <EmptyState>{emptyText}</EmptyState>
       )}
+    </article>
+  );
+}
+
+function FailureMappings({ mappings }: { mappings: FailureMapping[] }) {
+  return (
+    <article className="panel overflow-hidden">
+      <div className="border-b border-[#d0d7de] px-6 py-5">
+        <p className="section-title">Failed generated tests</p>
+        <h2 className="mt-1 text-xl font-semibold text-[#24292f]">
+          {mappings.length} mapped failure{mappings.length === 1 ? "" : "s"}
+        </h2>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-[#d0d7de] text-sm">
+          <thead className="bg-[#f6f8fa]">
+            <tr className="text-left text-xs font-semibold uppercase text-[#57606a]">
+              <th className="px-6 py-3">Failed test</th>
+              <th className="px-4 py-3">Target</th>
+              <th className="px-4 py-3">Behavior checked</th>
+              <th className="px-4 py-3">Failure</th>
+              <th className="px-4 py-3">Next step</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#d8dee4] bg-white">
+            {mappings.map((mapping) => (
+              <tr key={`${mapping.failed_test}-${mapping.target_file ?? "unknown"}`}>
+                <td className="max-w-[260px] break-words px-6 py-4 font-mono text-xs text-[#cf222e]">
+                  {mapping.failed_test}
+                </td>
+                <td className="max-w-[300px] break-words px-4 py-4 font-mono text-xs text-[#24292f]">
+                  {mapping.target_file ?? "unknown"}
+                  {mapping.target_function ? `::${mapping.target_function}` : ""}
+                </td>
+                <td className="max-w-[360px] break-words px-4 py-4 text-[#57606a]">
+                  {mapping.behavior_checked ?? "No behavior metadata"}
+                </td>
+                <td className="max-w-[320px] break-words px-4 py-4 text-[#57606a]">
+                  <p>{mapping.failure_summary}</p>
+                  <p className="mt-2 text-xs text-[#8c959f]">{mapping.risk_message}</p>
+                </td>
+                <td className="max-w-[360px] break-words px-4 py-4 text-[#57606a]">
+                  {mapping.suggested_next_step ?? "Review the generated test failure before merging."}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </article>
   );
 }
@@ -644,14 +962,14 @@ function RiskReasons({ reasons }: { reasons: RiskReport["risk_reasons"] }) {
       ) : (
         <div className="mt-5 grid gap-3 md:grid-cols-2">
           {reasons.map((reason) => (
-            <div key={`${reason.category}-${reason.reason}`} className="rounded-lg border border-slate-200 p-4">
+            <div key={`${reason.category}-${reason.reason}`} className="rounded-md border border-[#d0d7de] p-4">
               <div className="flex items-start justify-between gap-4">
-                <p className="text-sm font-semibold text-slate-950">{reason.category}</p>
-                <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                <p className="text-sm font-semibold text-[#24292f]">{reason.category}</p>
+                <span className="shrink-0 rounded-full bg-[#fff8c5] px-2.5 py-1 text-xs font-semibold text-[#9a6700]">
                   +{reason.score_impact}
                 </span>
               </div>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{reason.reason}</p>
+              <p className="mt-2 text-sm leading-6 text-[#57606a]">{reason.reason}</p>
             </div>
           ))}
         </div>
@@ -663,14 +981,14 @@ function RiskReasons({ reasons }: { reasons: RiskReport["risk_reasons"] }) {
 function SecurityFindings({ findings }: { findings: SecurityFinding[] }) {
   return (
     <article className="panel overflow-hidden">
-      <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-5">
+      <div className="flex items-center justify-between gap-4 border-b border-[#d0d7de] px-6 py-5">
         <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-rose-50 text-rose-700">
+          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#ffebe9] text-[#cf222e]">
             <ShieldAlert className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
             <p className="section-title">Security findings</p>
-            <p className="mt-1 text-sm text-slate-500">{findings.length} Bandit finding{findings.length === 1 ? "" : "s"}</p>
+            <p className="mt-1 text-sm text-[#57606a]">{findings.length} Bandit finding{findings.length === 1 ? "" : "s"}</p>
           </div>
         </div>
       </div>
@@ -680,27 +998,27 @@ function SecurityFindings({ findings }: { findings: SecurityFinding[] }) {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50">
-              <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <table className="min-w-full divide-y divide-[#d0d7de] text-sm">
+            <thead className="bg-[#f6f8fa]">
+              <tr className="text-left text-xs font-semibold uppercase text-[#57606a]">
                 <th className="px-6 py-3">Severity</th>
                 <th className="px-4 py-3">Confidence</th>
                 <th className="px-4 py-3">Location</th>
                 <th className="px-4 py-3">Message</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
+            <tbody className="divide-y divide-[#d8dee4] bg-white">
               {findings.map((finding, index) => (
                 <tr key={`${finding.filename ?? finding.file}-${finding.line_number ?? finding.line}-${index}`}>
                   <td className="px-6 py-4">
                     <SeverityBadge severity={finding.severity} />
                   </td>
-                  <td className="px-4 py-4 text-slate-600">{finding.confidence ?? "n/a"}</td>
-                  <td className="max-w-[340px] break-words px-4 py-4 font-mono text-xs text-slate-900">
+                  <td className="px-4 py-4 text-[#57606a]">{finding.confidence ?? "n/a"}</td>
+                  <td className="max-w-[340px] break-words px-4 py-4 font-mono text-xs text-[#24292f]">
                     {finding.filename ?? finding.file ?? "unknown"}:
                     {finding.line_number ?? finding.line ?? "?"}
                   </td>
-                  <td className="px-4 py-4 text-slate-700">
+                  <td className="px-4 py-4 text-[#57606a]">
                     {finding.message || finding.issue_text || "No message"}
                   </td>
                 </tr>
@@ -731,23 +1049,23 @@ function CollapsibleSection({
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition hover:bg-slate-50"
+        className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition hover:bg-[#f6f8fa]"
       >
         <span className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700">
+          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#ddf4ff] text-[#0969da]">
             {icon}
           </span>
           <span>
             <span className="section-title">{title}</span>
-            <span className="mt-1 block text-sm text-slate-500">{count} item{count === 1 ? "" : "s"}</span>
+            <span className="mt-1 block text-sm text-[#57606a]">{count} item{count === 1 ? "" : "s"}</span>
           </span>
         </span>
         <ChevronDown
-          className={`h-5 w-5 text-slate-500 transition ${open ? "rotate-180" : ""}`}
+          className={`h-5 w-5 text-[#57606a] transition ${open ? "rotate-180" : ""}`}
           aria-hidden="true"
         />
       </button>
-      {open ? <div className="border-t border-slate-200 px-6 py-5">{children}</div> : null}
+      {open ? <div className="border-t border-[#d0d7de] px-6 py-5">{children}</div> : null}
     </section>
   );
 }
@@ -756,14 +1074,14 @@ function GeneratedTestBlock({ test }: { test: GeneratedTest }) {
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-        <span className="font-mono text-xs font-semibold text-slate-950">{test.path}</span>
+        <span className="font-mono text-xs font-semibold text-[#24292f]">{test.path}</span>
         {test.target_functions?.map((target) => (
-          <span key={target} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
+          <span key={target} className="rounded-full bg-[#f6f8fa] px-2.5 py-1 text-xs text-[#57606a]">
             {target}
           </span>
         ))}
       </div>
-      <pre className="max-h-[520px] overflow-auto rounded-lg bg-slate-950 p-4 text-xs leading-6 text-slate-100">
+      <pre className="max-h-[520px] overflow-auto rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4 text-xs leading-6 text-[#24292f]">
         <code>{test.code}</code>
       </pre>
     </div>
@@ -772,19 +1090,19 @@ function GeneratedTestBlock({ test }: { test: GeneratedTest }) {
 
 function LogRunBlock({ run }: { run: ToolRun }) {
   return (
-    <div className="rounded-lg border border-slate-200">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+    <div className="rounded-md border border-[#d0d7de]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d0d7de] bg-[#f6f8fa] px-4 py-3">
         <div>
-          <p className="text-sm font-semibold text-slate-950">{run.name}</p>
-          <p className="text-xs text-slate-500">{run.kind}</p>
+          <p className="text-sm font-semibold text-[#24292f]">{run.name}</p>
+          <p className="text-xs text-[#57606a]">{run.kind}</p>
         </div>
         <StatusBadge status={run.status} />
       </div>
       <div className="space-y-4 p-4">
-        <p className="text-sm text-slate-700">{run.summary}</p>
+        <p className="text-sm text-[#57606a]">{run.summary}</p>
         {run.command ? (
           <>
-            <pre className="rounded-lg bg-slate-100 p-3 text-xs text-slate-700">
+            <pre className="rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-3 text-xs text-[#24292f]">
               <code>{run.command.command.join(" ")}</code>
             </pre>
             {run.command.stdout_tail ? (
@@ -804,7 +1122,7 @@ function LogOutput({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="metric-label">{label}</p>
-      <pre className="mt-2 max-h-[360px] overflow-auto rounded-lg bg-slate-950 p-4 text-xs leading-6 text-slate-100">
+      <pre className="mt-2 max-h-[360px] overflow-auto rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4 text-xs leading-6 text-[#24292f]">
         <code>{value}</code>
       </pre>
     </div>
@@ -822,12 +1140,12 @@ function Notice({
 }) {
   const styles =
     tone === "warning"
-      ? "border-amber-200 bg-amber-50 text-amber-900"
-      : "border-rose-200 bg-rose-50 text-rose-900";
+      ? "border-[#d4a72c] bg-[#fff8c5] text-[#633c01]"
+      : "border-[#ff8182] bg-[#ffebe9] text-[#82071e]";
   const Icon = tone === "warning" ? AlertTriangle : XCircle;
 
   return (
-    <div className={`mt-6 flex gap-3 rounded-lg border p-4 ${styles}`}>
+    <div className={`mt-6 flex gap-3 rounded-md border p-4 ${styles}`}>
       <Icon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
       <div>
         <p className="font-semibold">{title}</p>
@@ -839,7 +1157,7 @@ function Notice({
 
 function EmptyState({ children }: { children: ReactNode }) {
   return (
-    <div className="mt-5 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">
+    <div className="mt-5 rounded-md border border-dashed border-[#d0d7de] bg-[#f6f8fa] p-5 text-sm text-[#57606a]">
       {children}
     </div>
   );
@@ -847,10 +1165,10 @@ function EmptyState({ children }: { children: ReactNode }) {
 
 function StatusBadge({ status, label }: { status: RunStatus; label?: string }) {
   const styles: Record<RunStatus, string> = {
-    passed: "bg-emerald-100 text-emerald-800",
-    failed: "bg-rose-100 text-rose-800",
-    skipped: "bg-slate-100 text-slate-700",
-    error: "bg-amber-100 text-amber-800",
+    passed: "bg-[#dafbe1] text-[#116329]",
+    failed: "bg-[#ffebe9] text-[#cf222e]",
+    skipped: "bg-[#f6f8fa] text-[#57606a]",
+    error: "bg-[#fff8c5] text-[#9a6700]",
   };
   const Icon = status === "passed" ? CheckCircle2 : status === "failed" ? XCircle : AlertTriangle;
 
@@ -868,37 +1186,64 @@ function SeverityBadge({ severity }: { severity: string }) {
   const normalized = severity.toLowerCase();
   const style =
     normalized === "high"
-      ? "bg-rose-100 text-rose-800"
+      ? "bg-[#ffebe9] text-[#cf222e]"
       : normalized === "medium"
-        ? "bg-amber-100 text-amber-800"
-        : "bg-slate-100 text-slate-700";
+        ? "bg-[#fff8c5] text-[#9a6700]"
+        : "bg-[#f6f8fa] text-[#57606a]";
   return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${style}`}>{severity}</span>;
 }
 
 function riskTone(level: RiskLevel) {
   const tones = {
     low: {
-      text: "text-emerald-700",
-      badge: "bg-emerald-100 text-emerald-800",
-      bar: "bg-emerald-600",
+      text: "text-[#1a7f37]",
+      badge: "bg-[#dafbe1] text-[#116329]",
+      bar: "bg-[#1a7f37]",
     },
     medium: {
-      text: "text-amber-700",
-      badge: "bg-amber-100 text-amber-800",
-      bar: "bg-amber-500",
+      text: "text-[#9a6700]",
+      badge: "bg-[#fff8c5] text-[#9a6700]",
+      bar: "bg-[#bf8700]",
     },
     high: {
-      text: "text-orange-700",
-      badge: "bg-orange-100 text-orange-800",
-      bar: "bg-orange-600",
+      text: "text-[#bc4c00]",
+      badge: "bg-[#fff1e5] text-[#bc4c00]",
+      bar: "bg-[#bc4c00]",
     },
     critical: {
-      text: "text-rose-700",
-      badge: "bg-rose-100 text-rose-800",
-      bar: "bg-rose-600",
+      text: "text-[#cf222e]",
+      badge: "bg-[#ffebe9] text-[#cf222e]",
+      bar: "bg-[#cf222e]",
     },
   } satisfies Record<RiskLevel, { text: string; badge: string; bar: string }>;
   return tones[level];
+}
+
+function policyTone(decision: PolicyGateDecision) {
+  const tones = {
+    pass: {
+      title: "Policy passed",
+      badge: "bg-[#dafbe1] text-[#116329]",
+      icon: "bg-[#dafbe1] text-[#116329]",
+      symbol: <CheckCircle2 className="h-5 w-5" aria-hidden="true" />,
+    },
+    warn: {
+      title: "Review required",
+      badge: "bg-[#fff8c5] text-[#9a6700]",
+      icon: "bg-[#fff8c5] text-[#9a6700]",
+      symbol: <AlertTriangle className="h-5 w-5" aria-hidden="true" />,
+    },
+    block: {
+      title: "Policy blocked",
+      badge: "bg-[#ffebe9] text-[#cf222e]",
+      icon: "bg-[#ffebe9] text-[#cf222e]",
+      symbol: <XCircle className="h-5 w-5" aria-hidden="true" />,
+    },
+  } satisfies Record<
+    PolicyGateDecision,
+    { title: string; badge: string; icon: string; symbol: ReactNode }
+  >;
+  return tones[decision];
 }
 
 function collectLogRuns(report: RiskReport): ToolRun[] {
@@ -907,10 +1252,22 @@ function collectLogRuns(report: RiskReport): ToolRun[] {
     report.dependency_install,
     report.existing_tests,
     ...(report.static_analysis_results ?? []),
+    report.contract_extraction,
     report.test_generation,
     ...(report.generated_test_results ?? []),
     ...(report.sandbox_results ?? []),
   ].filter((run): run is ToolRun => Boolean(run));
+}
+
+function emptyBehavioralContract(): BehavioralContract {
+  return {
+    intended_new_behaviors: [],
+    existing_behaviors_to_preserve: [],
+    edge_cases_to_test: [],
+    invalid_inputs_to_test: [],
+    contract_uncertainties: ["Behavioral contract extraction did not run for this report."],
+    confidence: 0,
+  };
 }
 
 function formatStatus(status: AnalysisStatus): string {

@@ -14,6 +14,7 @@ export type AnalysisStatus =
 export type ReportStatus = "complete" | "partial" | "failed";
 export type RunStatus = "passed" | "failed" | "skipped" | "error";
 export type RiskLevel = "low" | "medium" | "high" | "critical";
+export type PolicyGateDecision = "pass" | "warn" | "block";
 
 export interface AnalyzePRRequest {
   pr_url: string;
@@ -110,6 +111,13 @@ export interface RiskBreakdown {
   reasons: RiskReason[];
 }
 
+export interface PolicyDecision {
+  decision: PolicyGateDecision;
+  reasons: string[];
+  triggered_rules: string[];
+  config_path?: string | null;
+}
+
 export interface SecurityFinding {
   tool: string;
   severity: string;
@@ -144,6 +152,15 @@ export interface ChangedFunction {
   parse_error?: string | null;
 }
 
+export interface BehavioralContract {
+  intended_new_behaviors: string[];
+  existing_behaviors_to_preserve: string[];
+  edge_cases_to_test: string[];
+  invalid_inputs_to_test: string[];
+  contract_uncertainties: string[];
+  confidence: number;
+}
+
 export interface GeneratedTest {
   path: string;
   target_files: string[];
@@ -154,6 +171,16 @@ export interface GeneratedTest {
   model?: string | null;
 }
 
+export interface FailureMapping {
+  failed_test: string;
+  target_file?: string | null;
+  target_function?: string | null;
+  behavior_checked?: string | null;
+  failure_summary: string;
+  risk_message: string;
+  suggested_next_step?: string;
+}
+
 export interface RiskReport {
   version: string;
   generated_at: string;
@@ -162,7 +189,10 @@ export interface RiskReport {
   pr: PullRequestInfo;
   changed_files: ChangedFile[];
   changed_functions?: ChangedFunction[];
+  behavioral_contract?: BehavioralContract | null;
+  contract_extraction?: ToolRun | null;
   generated_tests?: GeneratedTest[];
+  failure_mappings?: FailureMapping[];
   test_generation?: ToolRun | null;
   generated_test_results?: ToolRun[];
   security_findings?: SecurityFinding[];
@@ -177,6 +207,7 @@ export interface RiskReport {
   risk_level: RiskLevel;
   risk_breakdown?: RiskBreakdown | null;
   risk_reasons: RiskReason[];
+  policy_decision?: PolicyDecision | null;
   merge_decision: string;
   recommendation: string;
   report_path?: string | null;
