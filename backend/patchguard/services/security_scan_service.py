@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from patchguard.models import ChangedFile, RunStatus, SecurityFinding, StaticFinding, ToolRun
-from patchguard.services.sandbox_service import SandboxService
 from patchguard.services.function_extractor import FunctionExtractor
+from patchguard.services.sandbox_service import SandboxService
 
 
 class SecurityScanService:

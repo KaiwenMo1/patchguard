@@ -66,6 +66,14 @@ def test_filters_bandit_findings_to_changed_python_files() -> None:
                   "issue_confidence": "HIGH",
                   "issue_text": "Existing baseline issue",
                   "test_id": "B307"
+                },
+                {
+                  "filename": "./src/changed.py",
+                  "line_number": 99,
+                  "issue_severity": "HIGH",
+                  "issue_confidence": "HIGH",
+                  "issue_text": "Existing issue elsewhere in changed file",
+                  "test_id": "B307"
                 }
               ]
             }""",
@@ -75,7 +83,14 @@ def test_filters_bandit_findings_to_changed_python_files() -> None:
     raw_findings = SecurityScanService._parse_bandit_findings(run)
     findings = SecurityScanService._filter_security_findings(
         raw_findings,
-        [ChangedFile(filename="src/changed.py", status="modified")],
+        [
+            ChangedFile(
+                filename="src/changed.py",
+                status="modified",
+                patch="@@ -9,2 +9,3 @@\n context\n+eval(user_input)\n context\n",
+            )
+        ],
     )
 
     assert [finding.filename for finding in findings] == ["src/changed.py"]
+    assert [finding.line_number for finding in findings] == [10]
