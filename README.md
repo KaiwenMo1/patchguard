@@ -59,7 +59,7 @@ patchguard analyze <PR_URL> --out report.json
 Clone the repository:
 
 ```bash
-git clone https://github.com/<your-org>/patchguard.git
+git clone https://github.com/KaiwenMo1/patchguard.git
 cd patchguard
 ```
 
