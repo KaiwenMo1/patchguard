@@ -6,6 +6,22 @@ PatchGuard analyzes a public GitHub pull request, checks out the PR code, runs t
 
 > Demo screenshot placeholder: add `docs/screenshots/patchguard-dashboard.png` or `docs/screenshots/patchguard-demo.gif` after recording the dashboard flow.
 
+## Try it in 2 minutes
+
+```bash
+git clone https://github.com/KaiwenMo1/patchguard.git
+cd patchguard
+
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -e ".[dev]"
+
+docker build -t patchguard-python-sandbox:latest -f sandbox/python/Dockerfile sandbox/python
+
+patchguard analyze-demo examples/demo_security_bug \
+  --out report.json \
+  --skip-llm
+
 ## Why PatchGuard?
 
 AI-generated code often looks plausible while quietly changing behavior, weakening validation, or missing tests. A review comment is useful, but it is not evidence.
