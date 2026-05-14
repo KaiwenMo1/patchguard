@@ -35,6 +35,7 @@ http://127.0.0.1:4173
 | Mode | Command | Needs Docker | Needs OpenAI | Use case |
 | --- | --- | ---: | ---: | --- |
 | Static demo | GitHub Pages / `VITE_PATCHGUARD_STATIC_DEMO=true npm run build` | No | No | Show the dashboard with real sample reports |
+| GitHub Action | `uses: KaiwenMo1/patchguard@v1` | Yes | No by default | Run PatchGuard automatically on PRs |
 | Smoke test | `patchguard analyze ... --skip-docker --skip-llm` | No | No | Verify setup and GitHub access |
 | Evidence run | `patchguard analyze ... --skip-llm` | Yes | No | Run tests, Ruff, Bandit, risk, and policy |
 | LLM-assisted run | `patchguard analyze ...` | Yes | Yes | Extract a behavior contract and generate targeted pytest tests |
@@ -81,6 +82,7 @@ It does not claim a PR is correct. It gives reviewers concrete signals before me
 - **Changed-function extraction** for Python files using `ast`.
 - **Behavioral contract extraction** that turns the diff into intended behavior, preserved behavior, edge cases, invalid inputs, and uncertainties.
 - **Generated regression tests** for changed functions when an OpenAI API key is configured, guided by the extracted contract.
+- **Evidence-based AI review** that summarizes what changed, correctness notes, efficiency notes, top risks, and next actions using only collected evidence.
 - **Docker sandbox execution** with timeouts and disabled container networking.
 - **Existing and generated pytest results** captured as structured evidence.
 - **Generated-test failure mapping** from failed pytest names to target files, functions, and behavior checked.
@@ -90,6 +92,7 @@ It does not claim a PR is correct. It gives reviewers concrete signals before me
 - **FastAPI backend** for submitting and polling analyses.
 - **React + TypeScript dashboard** for a recruiter-friendly demo UI.
 - **Static GitHub Pages demo mode** with checked-in sample reports.
+- **Reusable GitHub Action** for running PatchGuard automatically on pull requests.
 - **Optional GitHub PR comment** that updates one PatchGuard summary comment instead of spamming.
 - **Partial reports** when clone, dependency install, Docker, tests, or scans fail.
 
@@ -99,6 +102,7 @@ OpenAI is optional. PatchGuard only uses OpenAI credits for:
 
 - Behavioral contract extraction from changed Python code.
 - LLM-generated pytest tests guided by that contract.
+- Evidence-based AI review summaries grounded in collected PatchGuard evidence.
 
 No credits are used when you run:
 
@@ -113,6 +117,28 @@ To intentionally enable behavioral contracts and generated tests:
 ```bash
 export OPENAI_API_KEY=sk_your_key_here
 patchguard analyze <PR_URL> --out report.json
+```
+
+## Evidence-Based AI Review
+
+When OpenAI is enabled, PatchGuard adds a review summary that answers:
+
+- What did this PR appear to change?
+- What correctness evidence passed, failed, or is missing?
+- Did PatchGuard collect any performance or efficiency evidence?
+- Which files should a reviewer inspect first?
+- What follow-up tests or fixes are suggested by the evidence?
+
+The AI review is constrained by the report. It must not invent failures, vulnerabilities, benchmark results, or claim that a PR is correct. It can say:
+
+```text
+Existing tests passed, but generated regression tests were skipped and no tests changed with the parser behavior.
+```
+
+It should not say:
+
+```text
+This PR is definitely correct.
 ```
 
 ## Quickstart: Local CLI
@@ -403,7 +429,55 @@ After pushing to GitHub, enable Pages with **Settings → Pages → Source: GitH
 
 ## GitHub Action
 
-An example workflow lives at `.github/workflows/patchguard.yml`.
+PatchGuard can run as a reusable GitHub Action in other repositories:
+
+```yaml
+name: PatchGuard
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  patchguard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: KaiwenMo1/patchguard@v1
+        with:
+          skip-llm: "true"
+```
+
+This runs with no OpenAI cost and uploads a Markdown report artifact.
+
+To comment on the PR, add `issues: write` and `comment: "true"`:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+jobs:
+  patchguard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: KaiwenMo1/patchguard@v1
+        with:
+          skip-llm: "true"
+          comment: "true"
+```
+
+Full action docs live at `docs/github-action.md`.
+
+An example workflow for this repository lives at `.github/workflows/patchguard.yml`.
 
 It installs PatchGuard, builds the Docker sandbox, runs `patchguard analyze` on pull requests, and uploads a Markdown report artifact. The workflow uses `--skip-llm` by default, so it does not spend OpenAI credits unless you intentionally change it and add an `OPENAI_API_KEY` secret.
 
@@ -469,8 +543,10 @@ flowchart TD
     R --> K
     F --> K
     K --> Q[Policy Gate]
+    Q --> S[Evidence-Based AI Review]
     P --> L[JSON / Markdown Report]
     Q --> L
+    S --> L
     L --> M[FastAPI]
     M --> N[React Dashboard]
     L --> O[Optional PR Comment]
@@ -488,13 +564,15 @@ Supported today:
 - Docker-based test/static/security evidence.
 - Local FastAPI + React dashboard.
 - Optional GitHub PR comments.
+- Reusable GitHub Action.
 - Configurable policy gate.
 - Generated-test failure mappings.
 - Behavioral contract extraction when OpenAI is enabled.
+- Evidence-based AI review when OpenAI is enabled.
 
 Known limitations:
 
-- Behavioral contracts and generated tests need an OpenAI API key and may need human review.
+- Behavioral contracts, generated tests, and AI review need an OpenAI API key and may need human review.
 - Dependency installation can fail for some repositories; PatchGuard captures this as partial evidence.
 - GitHub Pages can only host the static frontend, not the Docker-backed analyzer.
 - Semgrep, TypeScript, hosted queueing, and report history are not implemented yet.
@@ -508,7 +586,6 @@ Known limitations:
 - SWE-bench mini evaluation mode.
 - GitHub App installation flow.
 - Report history with SQLite-backed API storage.
-- Static GitHub Pages demo mode using checked-in sample reports.
 
 ## Development
 

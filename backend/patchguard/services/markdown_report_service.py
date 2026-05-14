@@ -34,6 +34,7 @@ def render_markdown_report(report: RiskReport | PatchGuardReport) -> str:
     if report.errors:
         lines.extend(_list_section("Pipeline Errors", report.errors))
     lines.extend(_policy_section(report))
+    lines.extend(_ai_review_section(report))
     lines.extend(_behavioral_contract_section(report))
     lines.extend(_changed_files_section(report.changed_files))
     lines.extend(_risk_reasons_section(report.risk_reasons))
@@ -123,6 +124,62 @@ def _policy_section(report: RiskReport | PatchGuardReport) -> list[str]:
         lines.append("")
         lines.extend(f"- {escape_markdown(reason)}" for reason in decision.reasons)
     lines.append("")
+    return lines
+
+
+def _ai_review_section(report: RiskReport | PatchGuardReport) -> list[str]:
+    review = report.ai_review
+    run = report.ai_review_run
+    lines = [
+        "## Evidence-Based AI Review",
+        "",
+        f"- **Status:** `{_value(run.status) if run else 'not_run'}`",
+    ]
+    if run:
+        lines.append(f"- **Summary:** {escape_markdown(run.summary)}")
+    if review is None:
+        lines.extend(["", "No AI review was attached.", ""])
+        return lines
+
+    lines.extend(
+        [
+            f"- **AI recommendation:** `{escape_markdown(review.merge_recommendation)}`",
+            "",
+            escape_markdown(review.executive_summary or "No executive summary was generated."),
+            "",
+        ]
+    )
+    sections = [
+        ("What Changed", review.pr_change_summary),
+        ("Correctness Notes", review.correctness_notes),
+        ("Efficiency Notes", review.efficiency_notes),
+        ("Suggested Follow-Up Tests", review.suggested_followup_tests),
+        ("Suggested Fixes", review.suggested_fixes),
+        ("Limitations", review.limitations),
+    ]
+    for title, values in sections:
+        if values:
+            lines.extend([f"**{title}:**"])
+            lines.extend(f"- {escape_markdown(value)}" for value in values)
+            lines.append("")
+    if review.top_risks:
+        lines.extend(
+            [
+                "**Top Risks:**",
+                "",
+                "| Risk | Severity | Evidence | Suggested fix |",
+                "| --- | --- | --- | --- |",
+            ]
+        )
+        for risk in review.top_risks:
+            lines.append(
+                "| "
+                f"{escape_markdown(risk.title)} | "
+                f"`{escape_markdown(risk.severity)}` | "
+                f"{escape_markdown('; '.join(risk.evidence))} | "
+                f"{escape_markdown(risk.suggested_fix)} |"
+            )
+        lines.append("")
     return lines
 
 

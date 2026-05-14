@@ -494,6 +494,7 @@ function ReportView({
         <PRMetadataCard report={report} analysis={analysis} />
       </div>
 
+      <AIReviewCard report={report} />
       <BehavioralContractCard report={report} />
 
       <div className="grid gap-6 xl:grid-cols-2">
@@ -767,6 +768,143 @@ function BehavioralContractCard({ report }: { report: RiskReport }) {
         ) : null}
       </div>
     </article>
+  );
+}
+
+function AIReviewCard({ report }: { report: RiskReport }) {
+  const review = report.ai_review;
+  const run = report.ai_review_run;
+  const topRisks = review?.top_risks ?? [];
+
+  return (
+    <article className="panel overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#d0d7de] px-6 py-5">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f6f8fa] text-[#57606a]">
+            <ClipboardList className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="section-title">Evidence-based AI review</p>
+            <p className="mt-1 text-sm text-[#57606a]">
+              Summary and next actions grounded in collected PatchGuard evidence
+            </p>
+          </div>
+        </div>
+        {run ? <StatusBadge status={run.status} /> : <StatusBadge status="skipped" />}
+      </div>
+
+      <div className="space-y-5 px-6 py-5">
+        {run ? <p className="text-sm text-[#57606a]">{run.summary}</p> : null}
+        {review ? (
+          <>
+            <div className="rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4">
+              <p className="text-sm font-semibold text-[#24292f]">Summary</p>
+              <p className="mt-2 text-sm leading-6 text-[#57606a]">
+                {review.executive_summary || "No AI review summary was generated."}
+              </p>
+              <p className="mt-3 text-xs font-medium text-[#57606a]">
+                AI recommendation: {review.merge_recommendation.replace(/_/g, " ")}
+              </p>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-3">
+              <ReviewList
+                title="What changed"
+                values={review.pr_change_summary}
+                emptyText="No AI change summary was generated."
+              />
+              <ReviewList
+                title="Correctness notes"
+                values={review.correctness_notes}
+                emptyText="No correctness notes were generated."
+              />
+              <ReviewList
+                title="Efficiency notes"
+                values={review.efficiency_notes}
+                emptyText="No performance evidence was collected."
+              />
+            </div>
+
+            {topRisks.length > 0 ? (
+              <div className="overflow-hidden rounded-md border border-[#d0d7de]">
+                <div className="border-b border-[#d0d7de] bg-[#f6f8fa] px-4 py-3">
+                  <p className="text-sm font-semibold text-[#24292f]">Top AI-highlighted risks</p>
+                </div>
+                <div className="divide-y divide-[#d8dee4]">
+                  {topRisks.map((risk) => (
+                    <div key={`${risk.title}-${risk.severity}`} className="grid gap-3 p-4 lg:grid-cols-[160px_minmax(0,1fr)_minmax(220px,0.6fr)]">
+                      <div>
+                        <SeverityBadge severity={risk.severity} />
+                        <p className="mt-2 text-sm font-semibold text-[#24292f]">{risk.title}</p>
+                      </div>
+                      <div>
+                        <p className="metric-label">Evidence</p>
+                        <ul className="mt-2 space-y-1 text-sm leading-6 text-[#57606a]">
+                          {risk.evidence.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="metric-label">Suggested fix</p>
+                        <p className="mt-2 text-sm leading-6 text-[#57606a]">
+                          {risk.suggested_fix || "Review the cited evidence before merge."}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="grid gap-4 lg:grid-cols-3">
+              <ReviewList
+                title="Follow-up tests"
+                values={review.suggested_followup_tests}
+                emptyText="No follow-up tests were suggested."
+              />
+              <ReviewList
+                title="Suggested fixes"
+                values={review.suggested_fixes}
+                emptyText="No fixes were suggested."
+              />
+              <ReviewList
+                title="Limitations"
+                values={review.limitations}
+                emptyText="No limitations were reported."
+              />
+            </div>
+          </>
+        ) : (
+          <EmptyState>No evidence-based AI review is attached to this report.</EmptyState>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function ReviewList({
+  title,
+  values,
+  emptyText,
+}: {
+  title: string;
+  values: string[];
+  emptyText: string;
+}) {
+  return (
+    <div className="rounded-md border border-[#d0d7de] p-4">
+      <p className="text-sm font-semibold text-[#24292f]">{title}</p>
+      {values.length === 0 ? (
+        <p className="mt-3 text-sm leading-6 text-[#57606a]">{emptyText}</p>
+      ) : (
+        <ul className="mt-3 space-y-2 text-sm leading-6 text-[#57606a]">
+          {values.map((value) => (
+            <li key={value}>{value}</li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -1255,6 +1393,7 @@ function collectLogRuns(report: RiskReport): ToolRun[] {
     report.contract_extraction,
     report.test_generation,
     ...(report.generated_test_results ?? []),
+    report.ai_review_run,
     ...(report.sandbox_results ?? []),
   ].filter((run): run is ToolRun => Boolean(run));
 }

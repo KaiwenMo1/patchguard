@@ -9,6 +9,7 @@ from pathlib import Path
 
 from patchguard.config import PatchGuardSettings
 from patchguard.models import PatchGuardReport, RiskReport, RunStatus, TestResult, ToolRun
+from patchguard.services.ai_review_service import AIReviewService
 from patchguard.services.clone_service import CloneService
 from patchguard.services.contract_extraction_service import ContractExtractionService
 from patchguard.services.function_extractor import FunctionExtractor
@@ -70,6 +71,7 @@ class SkeletonReportService:
         self.failure_mapping_service = TestFailureMappingService()
         self.risk_score_service = RiskScoreService()
         self.policy_service = PolicyService()
+        self.ai_review_service = AIReviewService()
 
     def analyze(
         self,
@@ -222,11 +224,27 @@ class SkeletonReportService:
         )
         self.risk_score_service.score_risk_report(report)
         self.policy_service.apply(report, repo_dir=policy_repo_dir)
+        self._apply_ai_review(report, skip_llm=skip_llm)
         path = Path(output_path)
         ensure_dir(path.parent)
         report.report_path = str(path)
         path.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
         return report
+
+    def _apply_ai_review(
+        self,
+        report: RiskReport | PatchGuardReport,
+        *,
+        skip_llm: bool,
+    ) -> None:
+        review_service = (
+            AIReviewService(enabled=False)
+            if skip_llm
+            else self.ai_review_service
+        )
+        review = review_service.review(report)
+        report.ai_review = review.review
+        report.ai_review_run = review.tool_run
 
     @staticmethod
     def _emit(callback: Callable[[str], None] | None, status: str) -> None:
@@ -362,6 +380,7 @@ class PatchGuardRunner:
         self.failure_mapping_service = TestFailureMappingService()
         self.risk_score_service = RiskScoreService()
         self.policy_service = PolicyService()
+        self.ai_review_service = AIReviewService()
 
     def run(
         self,
@@ -382,13 +401,13 @@ class PatchGuardRunner:
             report.changed_files = pr_data.changed_files
         except Exception as exc:  # noqa: BLE001 - top-level report must survive API failures.
             report.errors.append(f"GitHub metadata fetch failed: {exc}")
-            return self._finalize(report, output_path)
+            return self._finalize(report, output_path, skip_llm=skip_llm)
 
         checkout = self.clone_service.checkout_pull_request(report.pr, run_dir)
         report.sandbox_results.extend(checkout.tool_runs)
         if checkout.repo_dir is None:
             report.errors.append("Repository checkout failed; Docker tests and scans were not run")
-            return self._finalize(report, output_path)
+            return self._finalize(report, output_path, skip_llm=skip_llm)
 
         repo_dir = checkout.repo_dir
         report.changed_symbols = self.function_extractor.extract(repo_dir, report.changed_files)
@@ -427,7 +446,7 @@ class PatchGuardRunner:
 
         if skip_docker:
             self._mark_docker_skipped(report, reason="Docker execution disabled by --skip-docker")
-            return self._finalize(report, output_path, repo_dir=repo_dir)
+            return self._finalize(report, output_path, repo_dir=repo_dir, skip_llm=skip_llm)
 
         sandbox = SandboxService(
             command_runner=self.command_runner,
@@ -440,7 +459,7 @@ class PatchGuardRunner:
         report.sandbox_results.append(docker_build)
         if docker_build.status != RunStatus.PASSED:
             self._mark_docker_skipped(report, reason="Docker image build failed")
-            return self._finalize(report, output_path, repo_dir=repo_dir)
+            return self._finalize(report, output_path, repo_dir=repo_dir, skip_llm=skip_llm)
 
         dependency_run = sandbox.run_in_repo(
             repo_dir=repo_dir,
@@ -530,7 +549,7 @@ class PatchGuardRunner:
         report.static_analysis_results.append(bandit_run)
         report.security_findings.extend(security_findings)
 
-        return self._finalize(report, output_path, repo_dir=repo_dir)
+        return self._finalize(report, output_path, repo_dir=repo_dir, skip_llm=skip_llm)
 
     def _mark_docker_skipped(self, report: PatchGuardReport, *, reason: str) -> None:
         command_runner = self.command_runner
@@ -586,6 +605,7 @@ class PatchGuardRunner:
         output_path: str | Path | None,
         *,
         repo_dir: str | Path | None = None,
+        skip_llm: bool = False,
     ) -> PatchGuardReport:
         report.failure_mappings = self.failure_mapping_service.map_failures(
             report.generated_test_results,
@@ -593,6 +613,7 @@ class PatchGuardRunner:
         )
         self.risk_score_service.score(report)
         self.policy_service.apply(report, repo_dir=repo_dir)
+        self._apply_ai_review(report, skip_llm=skip_llm)
         if report.pr is None:
             report.status = "failed"
         elif report.errors:
@@ -627,6 +648,8 @@ class PatchGuardRunner:
             yield report.contract_extraction
         yield from report.generated_test_results
         yield from report.static_analysis_results
+        if report.ai_review_run:
+            yield report.ai_review_run
 
     @staticmethod
     def _mark_skipped_when_stdout_contains(run: ToolRun, *, marker: str, summary: str) -> None:
@@ -634,3 +657,18 @@ class PatchGuardRunner:
         if marker in stdout and run.status == RunStatus.PASSED:
             run.status = RunStatus.SKIPPED
             run.summary = summary
+
+    def _apply_ai_review(
+        self,
+        report: RiskReport | PatchGuardReport,
+        *,
+        skip_llm: bool,
+    ) -> None:
+        review_service = (
+            AIReviewService(enabled=False)
+            if skip_llm
+            else self.ai_review_service
+        )
+        review = review_service.review(report)
+        report.ai_review = review.review
+        report.ai_review_run = review.tool_run

@@ -18,6 +18,7 @@ from patchguard.models import (
     TestResult,
     ToolRun,
 )
+from patchguard.services.ai_review_service import AIReviewService
 from patchguard.services.contract_extraction_service import ContractExtractionService
 from patchguard.services.function_extractor import FunctionExtractor
 from patchguard.services.policy_service import PolicyService
@@ -49,6 +50,7 @@ class DemoReportService:
         self.failure_mapping_service = TestFailureMappingService()
         self.risk_score_service = RiskScoreService()
         self.policy_service = PolicyService()
+        self.ai_review_service = AIReviewService()
 
     def analyze(
         self,
@@ -123,16 +125,17 @@ class DemoReportService:
         else:
             self._run_docker_evidence(repo_dir, report)
 
-        if cleanup_workspace:
-            shutil.rmtree(workspace, ignore_errors=True)
-            report.workspace_path = None
-
         report.failure_mappings = self.failure_mapping_service.map_failures(
             report.generated_test_results,
             report.generated_test_metadata,
         )
         self.risk_score_service.score_risk_report(report)
         self.policy_service.apply(report, repo_dir=repo_dir)
+        self._apply_ai_review(report, skip_llm=skip_llm)
+
+        if cleanup_workspace:
+            shutil.rmtree(workspace, ignore_errors=True)
+            report.workspace_path = None
         path = Path(output_path)
         ensure_dir(path.parent)
         report.report_path = str(path)
@@ -220,6 +223,16 @@ class DemoReportService:
                 command=self.command_runner.skipped(["docker", "run", "...", GENERATED_TEST_SCRIPT], reason),
             )
         )
+
+    def _apply_ai_review(self, report: RiskReport, *, skip_llm: bool) -> None:
+        review_service = (
+            AIReviewService(enabled=False)
+            if skip_llm
+            else self.ai_review_service
+        )
+        review = review_service.review(report)
+        report.ai_review = review.review
+        report.ai_review_run = review.tool_run
 
     @staticmethod
     def _read_metadata(demo_path: Path) -> dict[str, Any]:

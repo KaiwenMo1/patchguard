@@ -181,6 +181,27 @@ export interface FailureMapping {
   suggested_next_step?: string;
 }
 
+export interface EvidenceRisk {
+  title: string;
+  severity: "low" | "medium" | "high" | "critical";
+  evidence: string[];
+  files: string[];
+  suggested_fix: string;
+}
+
+export interface EvidenceBasedReview {
+  merge_recommendation: "merge" | "merge_with_caution" | "do_not_merge" | "needs_human_review";
+  executive_summary: string;
+  pr_change_summary: string[];
+  correctness_notes: string[];
+  efficiency_notes: string[];
+  top_risks: EvidenceRisk[];
+  files_to_review_first: string[];
+  suggested_followup_tests: string[];
+  suggested_fixes: string[];
+  limitations: string[];
+}
+
 export interface RiskReport {
   version: string;
   generated_at: string;
@@ -208,6 +229,8 @@ export interface RiskReport {
   risk_breakdown?: RiskBreakdown | null;
   risk_reasons: RiskReason[];
   policy_decision?: PolicyDecision | null;
+  ai_review?: EvidenceBasedReview | null;
+  ai_review_run?: ToolRun | null;
   merge_decision: string;
   recommendation: string;
   report_path?: string | null;

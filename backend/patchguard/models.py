@@ -104,6 +104,7 @@ class ToolRun(BaseModel):
         "generated_tests",
         "static_analysis",
         "security_scan",
+        "ai_review",
     ]
     status: RunStatus
     summary: str
@@ -296,6 +297,32 @@ class FailureMapping(BaseModel):
     suggested_next_step: str = "Review the generated test failure before merging."
 
 
+class EvidenceRisk(BaseModel):
+    title: str
+    severity: Literal["low", "medium", "high", "critical"] = "medium"
+    evidence: list[str] = Field(default_factory=list)
+    files: list[str] = Field(default_factory=list)
+    suggested_fix: str = ""
+
+
+class EvidenceBasedReview(BaseModel):
+    merge_recommendation: Literal[
+        "merge",
+        "merge_with_caution",
+        "do_not_merge",
+        "needs_human_review",
+    ] = "needs_human_review"
+    executive_summary: str = ""
+    pr_change_summary: list[str] = Field(default_factory=list)
+    correctness_notes: list[str] = Field(default_factory=list)
+    efficiency_notes: list[str] = Field(default_factory=list)
+    top_risks: list[EvidenceRisk] = Field(default_factory=list)
+    files_to_review_first: list[str] = Field(default_factory=list)
+    suggested_followup_tests: list[str] = Field(default_factory=list)
+    suggested_fixes: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
 class RiskReport(BaseModel):
     version: str = "0.1.0"
     generated_at: datetime = Field(default_factory=utc_now)
@@ -325,6 +352,8 @@ class RiskReport(BaseModel):
     risk_breakdown: RiskBreakdown | None = None
     risk_reasons: list[RiskReason] = Field(default_factory=list)
     policy_decision: PolicyDecision = Field(default_factory=PolicyDecision)
+    ai_review: EvidenceBasedReview | None = None
+    ai_review_run: ToolRun | None = None
     merge_decision: MergeDecision = MergeDecision.MANUAL_REVIEW
     recommendation: MergeRecommendation = MergeRecommendation.HUMAN_REVIEW
     report_path: str | None = None
@@ -387,6 +416,8 @@ class PatchGuardReport(BaseModel):
     risk_breakdown: RiskBreakdown | None = None
     risk_reasons: list[RiskReason] = Field(default_factory=list)
     policy_decision: PolicyDecision = Field(default_factory=PolicyDecision)
+    ai_review: EvidenceBasedReview | None = None
+    ai_review_run: ToolRun | None = None
     merge_decision: MergeDecision = MergeDecision.MANUAL_REVIEW
     recommendation: MergeRecommendation = MergeRecommendation.HUMAN_REVIEW
     report_path: str | None = None

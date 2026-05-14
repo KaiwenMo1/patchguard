@@ -280,6 +280,10 @@ def _print_skeleton_summary(report: RiskReport) -> None:
                 for run in report.generated_test_results
             )
         )
+    if report.ai_review_run:
+        print(f"AI review: {report.ai_review_run.status.value} ({report.ai_review_run.summary})")
+    if report.ai_review and report.ai_review.executive_summary:
+        print(f"AI summary: {report.ai_review.executive_summary}")
     print(
         "Changed files: "
         f"{len(report.changed_files)} "
@@ -327,6 +331,10 @@ def _print_summary(report: PatchGuardReport) -> None:
         )
     if report.test_generation:
         print(f"Test generation: {report.test_generation.status.value} ({report.test_generation.summary})")
+    if report.ai_review_run:
+        print(f"AI review: {report.ai_review_run.status.value} ({report.ai_review_run.summary})")
+    if report.ai_review and report.ai_review.executive_summary:
+        print(f"AI summary: {report.ai_review.executive_summary}")
     if report.risk_reasons:
         print("Top risk reasons:")
         for reason in report.risk_reasons[:5]:

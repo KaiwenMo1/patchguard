@@ -1,0 +1,119 @@
+name: PatchGuard
+description: Evidence-backed PR verification for Python pull requests.
+
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  pr-url:
+    description: GitHub pull request URL. Defaults to the current pull_request event URL.
+    required: false
+    default: ""
+  output:
+    description: Report output path.
+    required: false
+    default: patchguard-report.md
+  format:
+    description: Report format, either json or markdown.
+    required: false
+    default: markdown
+  skip-llm:
+    description: Disable OpenAI-powered contract extraction, generated tests, and AI review.
+    required: false
+    default: "true"
+  comment:
+    description: Post or update one PatchGuard summary comment on the pull request.
+    required: false
+    default: "false"
+  timeout:
+    description: Timeout in seconds for sandbox commands.
+    required: false
+    default: "180"
+  docker-image:
+    description: Docker image tag for the PatchGuard Python sandbox.
+    required: false
+    default: patchguard-python-sandbox:latest
+  keep-workspace:
+    description: Keep cloned workspaces after the run.
+    required: false
+    default: "true"
+  upload-artifact:
+    description: Upload the generated report as a workflow artifact.
+    required: false
+    default: "true"
+  artifact-name:
+    description: Name for the uploaded PatchGuard report artifact.
+    required: false
+    default: patchguard-report
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install PatchGuard
+      shell: bash
+      run: python -m pip install "$GITHUB_ACTION_PATH"
+
+    - name: Build PatchGuard sandbox image
+      shell: bash
+      run: docker build -t "${{ inputs.docker-image }}" -f "$GITHUB_ACTION_PATH/sandbox/python/Dockerfile" "$GITHUB_ACTION_PATH/sandbox/python"
+
+    - name: Run PatchGuard
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
+        INPUT_PR_URL: ${{ inputs.pr-url }}
+        INPUT_OUTPUT: ${{ inputs.output }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_SKIP_LLM: ${{ inputs.skip-llm }}
+        INPUT_COMMENT: ${{ inputs.comment }}
+        INPUT_TIMEOUT: ${{ inputs.timeout }}
+        INPUT_DOCKER_IMAGE: ${{ inputs.docker-image }}
+        INPUT_KEEP_WORKSPACE: ${{ inputs.keep-workspace }}
+        EVENT_PR_URL: ${{ github.event.pull_request.html_url }}
+      run: |
+        set -euo pipefail
+
+        PR_URL="$INPUT_PR_URL"
+        if [ -z "$PR_URL" ]; then
+          PR_URL="$EVENT_PR_URL"
+        fi
+        if [ -z "$PR_URL" ]; then
+          echo "::error::PatchGuard needs a pull request URL. Run this action on pull_request events or set pr-url."
+          exit 1
+        fi
+
+        args=(
+          analyze "$PR_URL"
+          --out "$INPUT_OUTPUT"
+          --format "$INPUT_FORMAT"
+          --timeout "$INPUT_TIMEOUT"
+          --docker-image "$INPUT_DOCKER_IMAGE"
+        )
+
+        if [ "$INPUT_SKIP_LLM" = "true" ]; then
+          args+=(--skip-llm)
+        fi
+        if [ "$INPUT_COMMENT" = "true" ]; then
+          args+=(--comment)
+        fi
+        if [ "$INPUT_KEEP_WORKSPACE" = "true" ]; then
+          args+=(--keep-workspace)
+        else
+          args+=(--cleanup-workspace)
+        fi
+
+        patchguard "${args[@]}"
+
+    - name: Upload PatchGuard report
+      if: ${{ inputs.upload-artifact == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.output }}

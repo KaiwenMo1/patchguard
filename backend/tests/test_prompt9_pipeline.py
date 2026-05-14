@@ -24,6 +24,23 @@ def test_pipeline_runs_generated_tests_on_controlled_demo_repo(tmp_path, monkeyp
             '"confidence":0.9}'
         ),
     )
+    monkeypatch.setattr(
+        "patchguard.services.ai_review_service.OpenAIReviewProvider.generate_review",
+        lambda self, prompt: (
+            '{"merge_recommendation":"needs_human_review",'
+            '"executive_summary":"Generated regression evidence failed for the changed behavior.",'
+            '"pr_change_summary":["Changed is_positive threshold behavior"],'
+            '"correctness_notes":["Generated tests failed."],'
+            '"efficiency_notes":["No performance evidence was collected."],'
+            '"top_risks":[{"title":"Generated regression failed","severity":"high",'
+            '"evidence":["Generated regression tests failed"],'
+            '"files":["src/demo.py"],"suggested_fix":"Review zero handling."}],'
+            '"files_to_review_first":["src/demo.py"],'
+            '"suggested_followup_tests":["Add zero boundary test"],'
+            '"suggested_fixes":["Review changed threshold"],'
+            '"limitations":[]}'
+        ),
+    )
     output_path = tmp_path / "report.json"
 
     report = SkeletonReportService(
@@ -43,6 +60,10 @@ def test_pipeline_runs_generated_tests_on_controlled_demo_repo(tmp_path, monkeyp
     assert report.contract_extraction is not None
     assert report.contract_extraction.status == RunStatus.PASSED
     assert report.behavioral_contract.intended_new_behaviors == ["zero is no longer positive"]
+    assert report.ai_review_run is not None
+    assert report.ai_review_run.status == RunStatus.PASSED
+    assert report.ai_review is not None
+    assert report.ai_review.top_risks[0].title == "Generated regression failed"
     assert [
         (run.name, run.status)
         for run in report.generated_test_results

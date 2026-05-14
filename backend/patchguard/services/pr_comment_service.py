@@ -157,6 +157,8 @@ def render_pr_comment(report: RiskReport | PatchGuardReport) -> str:
         f"**Risk:** `{report.risk_score}/100` (`{_value(report.risk_level)}`)",
         f"**Recommendation:** {escape_markdown(_value(report.recommendation))}",
         "",
+        *_ai_review_lines(report),
+        "",
         "### Test Results",
         *_test_result_lines(report),
         *_failure_mapping_lines(report),
@@ -170,6 +172,26 @@ def render_pr_comment(report: RiskReport | PatchGuardReport) -> str:
     if report.report_path:
         lines.extend(["", f"Report artifact: `{escape_markdown(report.report_path)}`"])
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _ai_review_lines(report: RiskReport | PatchGuardReport) -> list[str]:
+    review = report.ai_review
+    if review is None:
+        return []
+    lines = [
+        "### Evidence-Based AI Review",
+        escape_markdown(review.executive_summary or "No AI review summary was generated."),
+    ]
+    if review.top_risks:
+        lines.append("")
+        lines.append("Top AI-highlighted risks:")
+        for risk in review.top_risks[:3]:
+            evidence = "; ".join(risk.evidence[:2])
+            lines.append(
+                f"- `{escape_markdown(risk.severity)}` **{escape_markdown(risk.title)}**"
+                f" — {escape_markdown(evidence)}"
+            )
+    return lines
 
 
 def _test_result_lines(report: RiskReport | PatchGuardReport) -> list[str]:
