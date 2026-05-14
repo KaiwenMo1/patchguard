@@ -10,11 +10,14 @@ from pathlib import Path
 from patchguard.config import PatchGuardSettings
 from patchguard.models import PatchGuardReport, RiskReport, RunStatus, TestResult, ToolRun
 from patchguard.services.clone_service import CloneService
+from patchguard.services.contract_extraction_service import ContractExtractionService
 from patchguard.services.function_extractor import FunctionExtractor
 from patchguard.services.github_service import GitHubService
+from patchguard.services.policy_service import PolicyService
 from patchguard.services.risk_score_service import RiskScoreService
 from patchguard.services.sandbox_service import SandboxService
 from patchguard.services.security_scan_service import SecurityScanService
+from patchguard.services.test_failure_mapping_service import TestFailureMappingService
 from patchguard.services.test_generation_service import TestGenerationService
 from patchguard.utils.command_runner import CommandRunner
 from patchguard.utils.file_utils import ensure_dir, write_json_report
@@ -62,8 +65,11 @@ class SkeletonReportService:
             timeout_seconds=self.settings.command_timeout_seconds,
         )
         self.function_extractor = FunctionExtractor()
+        self.contract_extraction_service = ContractExtractionService()
         self.test_generation_service = TestGenerationService()
+        self.failure_mapping_service = TestFailureMappingService()
         self.risk_score_service = RiskScoreService()
+        self.policy_service = PolicyService()
 
     def analyze(
         self,
@@ -92,11 +98,13 @@ class SkeletonReportService:
         report.workspace_path = str(workspace / "repo")
         checkout = self.clone_service.checkout_pull_request(pr_data.metadata, workspace)
         report.clone_results = checkout.tool_runs
+        policy_repo_dir: Path | None = None
         if checkout.repo_dir is None:
             report.status = "partial"
             report.workspace_path = None
             report.errors.append("Repository clone or PR checkout failed")
         else:
+            policy_repo_dir = checkout.repo_dir
             report.workspace_path = str(checkout.repo_dir)
             self._emit(status_callback, "analyzing_diff")
             report.changed_functions = self.function_extractor.extract_changed_functions(
@@ -104,6 +112,20 @@ class SkeletonReportService:
                 report.changed_files,
             )
             self._emit(status_callback, "generating_tests")
+            contract_service = (
+                ContractExtractionService(enabled=False)
+                if skip_llm
+                else self.contract_extraction_service
+            )
+            contract = contract_service.extract(
+                checkout.repo_dir,
+                pr_title=report.pr.title,
+                pr_body=None,
+                changed_files=report.changed_files,
+                changed_functions=report.changed_functions,
+            )
+            report.behavioral_contract = contract.contract
+            report.contract_extraction = contract.tool_run
             generation_service = (
                 TestGenerationService(enabled=False)
                 if skip_llm
@@ -113,8 +135,10 @@ class SkeletonReportService:
                 checkout.repo_dir,
                 report.changed_files,
                 report.changed_functions,
+                behavioral_contract=report.behavioral_contract,
             )
             report.generated_tests = generation.generated_tests
+            report.generated_test_metadata = generation.metadata
             report.test_generation = generation.tool_run
             report.status = "complete"
             if skip_docker:
@@ -192,7 +216,12 @@ class SkeletonReportService:
         if cleanup_workspace:
             self.clone_service.cleanup_workspace(workspace)
 
+        report.failure_mappings = self.failure_mapping_service.map_failures(
+            report.generated_test_results,
+            report.generated_test_metadata,
+        )
         self.risk_score_service.score_risk_report(report)
+        self.policy_service.apply(report, repo_dir=policy_repo_dir)
         path = Path(output_path)
         ensure_dir(path.parent)
         report.report_path = str(path)
@@ -328,8 +357,11 @@ class PatchGuardRunner:
             timeout_seconds=self.settings.command_timeout_seconds,
         )
         self.function_extractor = FunctionExtractor()
+        self.contract_extraction_service = ContractExtractionService()
         self.test_generation_service = TestGenerationService()
+        self.failure_mapping_service = TestFailureMappingService()
         self.risk_score_service = RiskScoreService()
+        self.policy_service = PolicyService()
 
     def run(
         self,
@@ -364,6 +396,20 @@ class PatchGuardRunner:
             repo_dir,
             report.changed_files,
         )
+        contract_service = (
+            ContractExtractionService(enabled=False)
+            if skip_llm
+            else self.contract_extraction_service
+        )
+        contract = contract_service.extract(
+            repo_dir,
+            pr_title=report.pr.title,
+            pr_body=None,
+            changed_files=report.changed_files,
+            changed_functions=report.changed_functions,
+        )
+        report.behavioral_contract = contract.contract
+        report.contract_extraction = contract.tool_run
         generation_service = (
             TestGenerationService(enabled=False)
             if skip_llm
@@ -373,13 +419,15 @@ class PatchGuardRunner:
             repo_dir,
             report.changed_files,
             report.changed_functions,
+            behavioral_contract=report.behavioral_contract,
         )
         report.generated_tests = generation.generated_tests
+        report.generated_test_metadata = generation.metadata
         report.test_generation = generation.tool_run
 
         if skip_docker:
             self._mark_docker_skipped(report, reason="Docker execution disabled by --skip-docker")
-            return self._finalize(report, output_path)
+            return self._finalize(report, output_path, repo_dir=repo_dir)
 
         sandbox = SandboxService(
             command_runner=self.command_runner,
@@ -392,7 +440,7 @@ class PatchGuardRunner:
         report.sandbox_results.append(docker_build)
         if docker_build.status != RunStatus.PASSED:
             self._mark_docker_skipped(report, reason="Docker image build failed")
-            return self._finalize(report, output_path)
+            return self._finalize(report, output_path, repo_dir=repo_dir)
 
         dependency_run = sandbox.run_in_repo(
             repo_dir=repo_dir,
@@ -482,7 +530,7 @@ class PatchGuardRunner:
         report.static_analysis_results.append(bandit_run)
         report.security_findings.extend(security_findings)
 
-        return self._finalize(report, output_path)
+        return self._finalize(report, output_path, repo_dir=repo_dir)
 
     def _mark_docker_skipped(self, report: PatchGuardReport, *, reason: str) -> None:
         command_runner = self.command_runner
@@ -536,8 +584,15 @@ class PatchGuardRunner:
         self,
         report: PatchGuardReport,
         output_path: str | Path | None,
+        *,
+        repo_dir: str | Path | None = None,
     ) -> PatchGuardReport:
+        report.failure_mappings = self.failure_mapping_service.map_failures(
+            report.generated_test_results,
+            report.generated_test_metadata,
+        )
         self.risk_score_service.score(report)
+        self.policy_service.apply(report, repo_dir=repo_dir)
         if report.pr is None:
             report.status = "failed"
         elif report.errors:
@@ -568,6 +623,8 @@ class PatchGuardRunner:
     def _all_runs(report: PatchGuardReport):
         yield from report.sandbox_results
         yield from report.existing_test_results
+        if report.contract_extraction:
+            yield report.contract_extraction
         yield from report.generated_test_results
         yield from report.static_analysis_results
 

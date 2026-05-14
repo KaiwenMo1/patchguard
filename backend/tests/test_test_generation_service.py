@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from patchguard.models import ChangedFile, ChangedFunction, RunStatus
+from patchguard.models import BehavioralContract, ChangedFile, ChangedFunction, RunStatus
 from patchguard.services.test_generation_service import TestGenerationService as GenerationService
 
 
@@ -73,11 +73,48 @@ def test_greet_includes_name():
         ".patchguard/generated_tests/test_patchguard_generated_src_app_py.py"
     )
     assert result.generated_tests[0].target_functions == ["greet"]
+    assert result.generated_tests[0].metadata[0].test_name == "test_greet_includes_name"
+    assert result.metadata[0].target_file == "src/app.py"
+    assert result.metadata[0].target_function == "greet"
     assert result.generated_tests[0].code.startswith("from src.app import greet")
     generated_path = tmp_path / result.generated_tests[0].path
+    metadata_path = tmp_path / ".patchguard" / "generated_tests" / "metadata.json"
     assert generated_path.exists()
+    assert metadata_path.exists()
+    assert "test_greet_includes_name" in metadata_path.read_text(encoding="utf-8")
     assert "```" not in generated_path.read_text(encoding="utf-8")
     assert "no network calls" in provider.prompt.lower()
+
+
+def test_generation_prompt_and_metadata_use_behavioral_contract(tmp_path) -> None:
+    source = tmp_path / "src" / "app.py"
+    source.parent.mkdir()
+    source.write_text("def greet(name):\n    return f'hi {name}'\n", encoding="utf-8")
+    provider = FakeProvider(
+        "from src.app import greet\n\n"
+        "def test_empty_name_behavior():\n"
+        "    assert greet('') == 'hi '\n"
+    )
+    contract = BehavioralContract(
+        intended_new_behaviors=["empty names are handled deterministically"],
+        existing_behaviors_to_preserve=["non-empty names still receive the hi prefix"],
+        edge_cases_to_test=["empty string input"],
+        invalid_inputs_to_test=["None input"],
+        confidence=0.75,
+    )
+
+    result = GenerationService(api_key="test-key", provider=provider).generate(
+        tmp_path,
+        [ChangedFile(filename="src/app.py", status="modified", additions=2, deletions=0, changes=2)],
+        [_changed_function()],
+        behavioral_contract=contract,
+    )
+
+    assert result.tool_run.status == RunStatus.PASSED
+    assert "Behavioral contract" in provider.prompt
+    assert "empty string input" in provider.prompt
+    assert result.metadata[0].behavior_checked == "empty names are handled deterministically"
+    assert result.metadata[0].test_type == "new_behavior"
 
 
 def test_rejects_empty_llm_output(tmp_path) -> None:

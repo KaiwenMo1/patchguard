@@ -111,6 +111,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Generate local demo metadata but skip Docker evidence collection.",
     )
     demo_parser.add_argument(
+        "--skip-llm",
+        action="store_true",
+        help="Disable behavioral contract extraction and LLM test generation for the local demo.",
+    )
+    demo_parser.add_argument(
         "--cleanup-workspace",
         action="store_true",
         help="Delete the copied demo workspace after writing the report.",
@@ -206,6 +211,7 @@ def main(argv: list[str] | None = None) -> int:
                 Path(args.out),
                 workspaces_dir=Path(args.workspaces_dir),
                 skip_docker=args.skip_docker,
+                skip_llm=args.skip_llm,
                 cleanup_workspace=args.cleanup_workspace,
             )
         except ValueError as exc:
@@ -258,6 +264,12 @@ def _print_skeleton_summary(report: RiskReport) -> None:
         )
     if report.security_findings:
         print(f"Security findings: {len(report.security_findings)}")
+    if report.contract_extraction:
+        print(
+            "Behavioral contract: "
+            f"{report.contract_extraction.status.value} "
+            f"({report.contract_extraction.summary})"
+        )
     if report.test_generation:
         print(f"Test generation: {report.test_generation.status.value} ({report.test_generation.summary})")
     if report.generated_test_results:
@@ -276,8 +288,10 @@ def _print_skeleton_summary(report: RiskReport) -> None:
     print(f"Changed functions: {len(report.changed_functions)}")
     print(f"Risk: {report.risk_score}/100 ({report.risk_level.value})")
     _print_risk_breakdown(report)
+    _print_policy_decision(report)
     print(f"Decision: {report.merge_decision.value}")
     print(f"Recommendation: {report.recommendation.value}")
+    _print_failure_mappings(report)
     if report.risk_reasons:
         print("Top risk reasons:")
         for reason in report.risk_reasons[:5]:
@@ -293,8 +307,10 @@ def _print_summary(report: PatchGuardReport) -> None:
     print(f"Status: {report.status}")
     print(f"Risk: {report.risk_score}/100 ({report.risk_level.value})")
     _print_risk_breakdown(report)
+    _print_policy_decision(report)
     print(f"Decision: {report.merge_decision.value}")
     print(f"Recommendation: {report.recommendation.value}")
+    _print_failure_mappings(report)
     if report.pr:
         print(f"PR: {report.pr.html_url}")
         print(
@@ -303,6 +319,12 @@ def _print_summary(report: PatchGuardReport) -> None:
             f"(+{report.pr.additions}/-{report.pr.deletions})"
         )
         print(f"Changed functions: {len(report.changed_functions)}")
+    if report.contract_extraction:
+        print(
+            "Behavioral contract: "
+            f"{report.contract_extraction.status.value} "
+            f"({report.contract_extraction.summary})"
+        )
     if report.test_generation:
         print(f"Test generation: {report.test_generation.status.value} ({report.test_generation.summary})")
     if report.risk_reasons:
@@ -327,6 +349,27 @@ def _print_risk_breakdown(report: RiskReport | PatchGuardReport) -> None:
         f"security={breakdown.security_risk}, "
         f"uncertainty={breakdown.uncertainty_risk}"
     )
+
+
+def _print_policy_decision(report: RiskReport | PatchGuardReport) -> None:
+    decision = report.policy_decision
+    rules = ", ".join(decision.triggered_rules) if decision.triggered_rules else "none"
+    print(f"Policy: {decision.decision.value} (rules: {rules})")
+
+
+def _print_failure_mappings(report: RiskReport | PatchGuardReport) -> None:
+    if not report.failure_mappings:
+        return
+    print("Failed generated tests:")
+    for mapping in report.failure_mappings[:5]:
+        target = (
+            f"{mapping.target_file}::{mapping.target_function}"
+            if mapping.target_file and mapping.target_function
+            else "unknown target"
+        )
+        print(f"  - {mapping.failed_test} -> {target}: {mapping.failure_summary}")
+        print(f"    Risk: {mapping.risk_message}")
+        print(f"    Next: {mapping.suggested_next_step}")
 
 
 def _maybe_comment(args: argparse.Namespace, report: RiskReport | PatchGuardReport) -> PRCommentResult | None:

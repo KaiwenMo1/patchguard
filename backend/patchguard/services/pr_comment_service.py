@@ -159,6 +159,7 @@ def render_pr_comment(report: RiskReport | PatchGuardReport) -> str:
         "",
         "### Test Results",
         *_test_result_lines(report),
+        *_failure_mapping_lines(report),
         "",
         "### Security",
         _security_summary(report),
@@ -193,6 +194,24 @@ def _run_summary(runs: list[ToolRun]) -> str:
         f"`{_value(run.status)}` {escape_markdown(run.summary)}"
         for run in runs[:3]
     )
+
+
+def _failure_mapping_lines(report: RiskReport | PatchGuardReport) -> list[str]:
+    if not report.failure_mappings:
+        return []
+    lines = ["", "Generated failure mappings:"]
+    for mapping in report.failure_mappings[:3]:
+        target = (
+            f"{mapping.target_file or 'unknown'}::{mapping.target_function}"
+            if mapping.target_function
+            else mapping.target_file or "unknown"
+        )
+        lines.append(
+            f"- `{escape_markdown(mapping.failed_test)}` -> `{escape_markdown(target)}`: "
+            f"{escape_markdown(mapping.failure_summary)}. "
+            f"Next: {escape_markdown(mapping.suggested_next_step)}"
+        )
+    return lines
 
 
 def _security_summary(report: RiskReport | PatchGuardReport) -> str:

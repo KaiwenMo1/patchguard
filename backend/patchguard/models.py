@@ -42,6 +42,41 @@ class MergeRecommendation(StrEnum):
     LIKELY_SAFE = "Likely safe to merge after normal review."
 
 
+class PolicyGateDecision(StrEnum):
+    PASS = "pass"
+    WARN = "warn"
+    BLOCK = "block"
+
+
+class PolicyConfig(BaseModel):
+    risk_threshold: int = 70
+    block_on: list[str] = Field(
+        default_factory=lambda: [
+            "generated_test_failure",
+            "existing_test_failure",
+            "high_security_finding",
+            "secret_detected",
+            "auth_code_without_tests",
+        ]
+    )
+    sensitive_paths: list[str] = Field(
+        default_factory=lambda: [
+            "auth/",
+            "security/",
+            "payments/",
+            "api/routes/",
+        ]
+    )
+    allow_merge_with_caution_below: int = 60
+
+
+class PolicyDecision(BaseModel):
+    decision: PolicyGateDecision = PolicyGateDecision.PASS
+    reasons: list[str] = Field(default_factory=list)
+    triggered_rules: list[str] = Field(default_factory=list)
+    config_path: str | None = None
+
+
 class CommandResult(BaseModel):
     command: list[str]
     exit_code: int | None = None
@@ -64,6 +99,7 @@ class ToolRun(BaseModel):
         "docker_build",
         "dependency_install",
         "existing_tests",
+        "contract_extraction",
         "test_generation",
         "generated_tests",
         "static_analysis",
@@ -222,6 +258,15 @@ class ChangedFunction(BaseModel):
     parse_error: str | None = None
 
 
+class BehavioralContract(BaseModel):
+    intended_new_behaviors: list[str] = Field(default_factory=list)
+    existing_behaviors_to_preserve: list[str] = Field(default_factory=list)
+    edge_cases_to_test: list[str] = Field(default_factory=list)
+    invalid_inputs_to_test: list[str] = Field(default_factory=list)
+    contract_uncertainties: list[str] = Field(default_factory=list)
+    confidence: float = 0.0
+
+
 class GeneratedTest(BaseModel):
     path: str
     target_files: list[str]
@@ -230,6 +275,25 @@ class GeneratedTest(BaseModel):
     code: str = ""
     provider: str | None = None
     model: str | None = None
+    metadata: list[GeneratedTestMetadata] = Field(default_factory=list)
+
+
+class GeneratedTestMetadata(BaseModel):
+    test_name: str
+    target_file: str
+    target_function: str
+    behavior_checked: str
+    test_type: Literal["new_behavior", "regression", "edge_case", "security", "unknown"] = "regression"
+
+
+class FailureMapping(BaseModel):
+    failed_test: str
+    target_file: str | None = None
+    target_function: str | None = None
+    behavior_checked: str | None = None
+    failure_summary: str
+    risk_message: str
+    suggested_next_step: str = "Review the generated test failure before merging."
 
 
 class RiskReport(BaseModel):
@@ -240,7 +304,11 @@ class RiskReport(BaseModel):
     pr: PullRequestInfo
     changed_files: list[ChangedFile] = Field(default_factory=list)
     changed_functions: list[ChangedFunction] = Field(default_factory=list)
+    behavioral_contract: BehavioralContract = Field(default_factory=BehavioralContract)
+    contract_extraction: ToolRun | None = None
     generated_tests: list[GeneratedTest] = Field(default_factory=list)
+    generated_test_metadata: list[GeneratedTestMetadata] = Field(default_factory=list)
+    failure_mappings: list[FailureMapping] = Field(default_factory=list)
     test_generation: ToolRun | None = None
     generated_test_results: list[ToolRun] = Field(default_factory=list)
     test_results: list[TestResult] = Field(default_factory=list)
@@ -256,6 +324,7 @@ class RiskReport(BaseModel):
     risk_level: RiskLevel = RiskLevel.LOW
     risk_breakdown: RiskBreakdown | None = None
     risk_reasons: list[RiskReason] = Field(default_factory=list)
+    policy_decision: PolicyDecision = Field(default_factory=PolicyDecision)
     merge_decision: MergeDecision = MergeDecision.MANUAL_REVIEW
     recommendation: MergeRecommendation = MergeRecommendation.HUMAN_REVIEW
     report_path: str | None = None
@@ -301,7 +370,11 @@ class PatchGuardReport(BaseModel):
     changed_files: list[ChangedFile] = Field(default_factory=list)
     changed_symbols: list[FunctionSymbol] = Field(default_factory=list)
     changed_functions: list[ChangedFunction] = Field(default_factory=list)
+    behavioral_contract: BehavioralContract = Field(default_factory=BehavioralContract)
+    contract_extraction: ToolRun | None = None
     generated_tests: list[GeneratedTest] = Field(default_factory=list)
+    generated_test_metadata: list[GeneratedTestMetadata] = Field(default_factory=list)
+    failure_mappings: list[FailureMapping] = Field(default_factory=list)
     test_generation: ToolRun | None = None
     sandbox_results: list[ToolRun] = Field(default_factory=list)
     existing_test_results: list[ToolRun] = Field(default_factory=list)
@@ -313,6 +386,7 @@ class PatchGuardReport(BaseModel):
     risk_level: RiskLevel = RiskLevel.LOW
     risk_breakdown: RiskBreakdown | None = None
     risk_reasons: list[RiskReason] = Field(default_factory=list)
+    policy_decision: PolicyDecision = Field(default_factory=PolicyDecision)
     merge_decision: MergeDecision = MergeDecision.MANUAL_REVIEW
     recommendation: MergeRecommendation = MergeRecommendation.HUMAN_REVIEW
     report_path: str | None = None

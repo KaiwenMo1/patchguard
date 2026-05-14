@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import os
 import re
 from collections import defaultdict
@@ -12,7 +13,15 @@ from typing import Any, Protocol
 
 import requests
 
-from patchguard.models import ChangedFile, ChangedFunction, GeneratedTest, RunStatus, ToolRun
+from patchguard.models import (
+    BehavioralContract,
+    ChangedFile,
+    ChangedFunction,
+    GeneratedTest,
+    GeneratedTestMetadata,
+    RunStatus,
+    ToolRun,
+)
 from patchguard.utils.command_runner import CommandRunner
 from patchguard.utils.file_utils import ensure_dir
 
@@ -37,6 +46,7 @@ class LLMTestProvider(Protocol):
 @dataclass(frozen=True)
 class TestGenerationResult:
     generated_tests: list[GeneratedTest]
+    metadata: list[GeneratedTestMetadata]
     tool_run: ToolRun
 
 
@@ -122,6 +132,7 @@ class TestGenerationService:
         repo_dir: str | Path,
         changed_files: list[ChangedFile],
         changed_functions: list[ChangedFunction],
+        behavioral_contract: BehavioralContract | None = None,
     ) -> TestGenerationResult:
         repo_path = Path(repo_dir)
         targets = self._targets(changed_files, changed_functions)
@@ -138,10 +149,16 @@ class TestGenerationService:
             base_url=self.base_url,
         )
         generated_tests: list[GeneratedTest] = []
+        metadata: list[GeneratedTestMetadata] = []
         errors: list[str] = []
         for file_path, functions in targets.items():
             changed_file = next(file for file in changed_files if file.filename == file_path)
-            prompt = self._prompt_for_file(repo_path, changed_file, functions)
+            prompt = self._prompt_for_file(
+                repo_path,
+                changed_file,
+                functions,
+                behavioral_contract=behavioral_contract,
+            )
             try:
                 raw_code = provider.generate_pytest(prompt)
                 code = self._post_process(raw_code)
@@ -153,6 +170,13 @@ class TestGenerationService:
             output_path = repo_path / relative_test_path
             ensure_dir(output_path.parent)
             output_path.write_text(code.rstrip() + "\n", encoding="utf-8")
+            test_metadata = self._metadata_for_generated_code(
+                code,
+                file_path=file_path,
+                functions=functions,
+                contract=behavioral_contract,
+            )
+            metadata.extend(test_metadata)
             generated_tests.append(
                 GeneratedTest(
                     path=str(relative_test_path),
@@ -162,12 +186,17 @@ class TestGenerationService:
                     code=code.rstrip() + "\n",
                     provider=provider.provider_name,
                     model=provider.model,
+                    metadata=test_metadata,
                 )
             )
+
+        if metadata:
+            self._write_metadata(repo_path, metadata)
 
         if generated_tests and not errors:
             return TestGenerationResult(
                 generated_tests=generated_tests,
+                metadata=metadata,
                 tool_run=ToolRun(
                     name="generate LLM pytest tests",
                     kind="test_generation",
@@ -179,6 +208,7 @@ class TestGenerationService:
         if generated_tests:
             return TestGenerationResult(
                 generated_tests=generated_tests,
+                metadata=metadata,
                 tool_run=ToolRun(
                     name="generate LLM pytest tests",
                     kind="test_generation",
@@ -192,6 +222,7 @@ class TestGenerationService:
             )
         return TestGenerationResult(
             generated_tests=[],
+            metadata=[],
             tool_run=ToolRun(
                 name="generate LLM pytest tests",
                 kind="test_generation",
@@ -239,6 +270,63 @@ class TestGenerationService:
         return text
 
     @staticmethod
+    def _metadata_for_generated_code(
+        code: str,
+        *,
+        file_path: str,
+        functions: list[ChangedFunction],
+        contract: BehavioralContract | None = None,
+    ) -> list[GeneratedTestMetadata]:
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            return []
+        behavior_targets = TestGenerationService._behavior_targets(contract)
+        test_nodes = sorted(
+            (
+                node
+                for node in ast.walk(tree)
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name.startswith("test_")
+            ),
+            key=lambda node: node.lineno,
+        )
+        metadata: list[GeneratedTestMetadata] = []
+        for index, node in enumerate(test_nodes):
+            if functions:
+                target_function = functions[index % len(functions)].qualified_name
+            else:
+                target_function = file_path
+            if behavior_targets:
+                behavior_checked, test_type = behavior_targets[index % len(behavior_targets)]
+            else:
+                behavior_checked = f"Generated regression behavior for {target_function}"
+                test_type = "regression"
+            metadata.append(
+                GeneratedTestMetadata(
+                    test_name=node.name,
+                    target_file=file_path,
+                    target_function=target_function,
+                    behavior_checked=behavior_checked,
+                    test_type=test_type,
+                )
+            )
+        return metadata
+
+    @staticmethod
+    def _write_metadata(repo_path: Path, metadata: list[GeneratedTestMetadata]) -> None:
+        metadata_path = repo_path / GENERATED_TEST_DIR / "metadata.json"
+        ensure_dir(metadata_path.parent)
+        metadata_path.write_text(
+            json.dumps(
+                {"tests": [item.model_dump(mode="json") for item in metadata]},
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    @staticmethod
     def _reject_unsafe_constructs(tree: ast.AST) -> None:
         for node in ast.walk(tree):
             if isinstance(node, (ast.Import, ast.ImportFrom)):
@@ -259,6 +347,8 @@ class TestGenerationService:
         repo_path: Path,
         changed_file: ChangedFile,
         functions: list[ChangedFunction],
+        *,
+        behavioral_contract: BehavioralContract | None = None,
     ) -> str:
         changed_function_text = "\n\n".join(
             (
@@ -279,6 +369,8 @@ Rules:
 - Do not use sleeps or time-based waits.
 - Keep tests deterministic.
 - Focus on edge cases and regression behavior for the changed functions.
+- Prefer the behavioral contract below when choosing assertions.
+- Cover intended new behavior, preserved existing behavior, edge cases, and invalid inputs when possible.
 - Prefer importing from the changed module when possible.
 - If direct imports are risky because dependencies may be absent, use ast/importlib guards or pytest.skip with a clear reason.
 
@@ -287,6 +379,9 @@ File path:
 
 GitHub patch:
 {changed_file.patch or "No patch text available."}
+
+Behavioral contract:
+{self._contract_text(behavioral_contract)}
 
 Changed functions:
 {changed_function_text}
@@ -316,10 +411,44 @@ Nearby context:
         return f"test_patchguard_generated_{safe_name}.py"
 
     @staticmethod
+    def _contract_text(contract: BehavioralContract | None) -> str:
+        if contract is None:
+            return "No behavioral contract was extracted."
+        sections = [
+            ("Intended new behaviors", contract.intended_new_behaviors),
+            ("Existing behaviors to preserve", contract.existing_behaviors_to_preserve),
+            ("Edge cases to test", contract.edge_cases_to_test),
+            ("Invalid inputs to test", contract.invalid_inputs_to_test),
+            ("Uncertainties", contract.contract_uncertainties),
+        ]
+        lines = [f"Confidence: {contract.confidence:.2f}"]
+        for title, values in sections:
+            lines.append(f"{title}:")
+            if values:
+                lines.extend(f"- {value}" for value in values)
+            else:
+                lines.append("- none")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _behavior_targets(
+        contract: BehavioralContract | None,
+    ) -> list[tuple[str, str]]:
+        if contract is None:
+            return []
+        targets: list[tuple[str, str]] = []
+        targets.extend((value, "new_behavior") for value in contract.intended_new_behaviors)
+        targets.extend((value, "regression") for value in contract.existing_behaviors_to_preserve)
+        targets.extend((value, "edge_case") for value in contract.edge_cases_to_test)
+        targets.extend((value, "edge_case") for value in contract.invalid_inputs_to_test)
+        return targets
+
+    @staticmethod
     def _skipped(reason: str) -> TestGenerationResult:
         runner = CommandRunner()
         return TestGenerationResult(
             generated_tests=[],
+            metadata=[],
             tool_run=ToolRun(
                 name="generate LLM pytest tests",
                 kind="test_generation",

@@ -1,0 +1,13 @@
+risk_threshold: 70
+allow_merge_with_caution_below: 60
+block_on:
+- generated_test_failure
+- existing_test_failure
+- high_security_finding
+- secret_detected
+- auth_code_without_tests
+sensitive_paths:
+- "auth/"
+- "security/"
+- "payments/"
+- "api/routes/"

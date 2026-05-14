@@ -13,6 +13,17 @@ def test_pipeline_runs_generated_tests_on_controlled_demo_repo(tmp_path, monkeyp
         "patchguard.services.test_generation_service.OpenAIResponsesProvider.generate_pytest",
         lambda self, prompt: "def test_patchguard_generated_demo_regression():\n    assert False\n",
     )
+    monkeypatch.setattr(
+        "patchguard.services.contract_extraction_service.OpenAIContractProvider.generate_contract",
+        lambda self, prompt: (
+            '{"intended_new_behaviors":["zero is no longer positive"],'
+            '"existing_behaviors_to_preserve":["positive numbers remain positive"],'
+            '"edge_cases_to_test":["zero"],'
+            '"invalid_inputs_to_test":[],'
+            '"contract_uncertainties":[],'
+            '"confidence":0.9}'
+        ),
+    )
     output_path = tmp_path / "report.json"
 
     report = SkeletonReportService(
@@ -26,8 +37,12 @@ def test_pipeline_runs_generated_tests_on_controlled_demo_repo(tmp_path, monkeyp
 
     assert output_path.exists()
     assert report.generated_tests
+    assert report.generated_test_metadata
     assert report.test_generation is not None
     assert report.test_generation.status == RunStatus.PASSED
+    assert report.contract_extraction is not None
+    assert report.contract_extraction.status == RunStatus.PASSED
+    assert report.behavioral_contract.intended_new_behaviors == ["zero is no longer positive"]
     assert [
         (run.name, run.status)
         for run in report.generated_test_results
@@ -38,6 +53,10 @@ def test_pipeline_runs_generated_tests_on_controlled_demo_repo(tmp_path, monkeyp
     generated_run = report.generated_test_results[-1]
     assert generated_run.command is not None
     assert "1 failed" in generated_run.command.stdout_tail
+    assert report.failure_mappings
+    assert report.failure_mappings[0].failed_test == "test_patchguard_generated_demo_regression"
+    assert report.failure_mappings[0].target_file == "src/demo.py"
+    assert "is_positive" in (report.failure_mappings[0].target_function or "")
     assert report.risk_score == 70
     assert report.risk_level.value == "high"
     assert report.risk_breakdown is not None
@@ -122,7 +141,12 @@ class ControlledCommandRunner:
             return CommandResult(
                 command=command_parts,
                 exit_code=self.generated_pytest_exit_code,
-                stdout_tail="1 failed" if self.generated_pytest_exit_code else "1 passed",
+                stdout_tail=(
+                    "FAILED .patchguard/generated_tests/test_patchguard_generated_src_demo_py.py::"
+                    "test_patchguard_generated_demo_regression - AssertionError\n1 failed"
+                    if self.generated_pytest_exit_code
+                    else "1 passed"
+                ),
             )
         if "python -m pytest -q" in command_text:
             return CommandResult(command=command_parts, exit_code=0, stdout_tail="1 passed")

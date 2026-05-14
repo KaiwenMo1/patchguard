@@ -61,6 +61,7 @@ class RiskScoreService:
             generated_test_runs=report.generated_test_results,
             dependency_runs=dependency_runs,
             security_findings=report.security_findings,
+            behavior_confidence=self._contract_confidence(report),
         )
 
     def input_from_patch_guard_report(self, report: PatchGuardReport) -> RiskInput:
@@ -80,6 +81,7 @@ class RiskScoreService:
             generated_test_runs=report.generated_test_results,
             dependency_runs=dependency_runs,
             security_findings=report.security_findings,
+            behavior_confidence=self._contract_confidence(report),
         )
 
     def compute_breakdown(self, risk_input: RiskInput) -> RiskBreakdown:
@@ -134,6 +136,7 @@ class RiskScoreService:
         generated_test_runs: list[ToolRun],
         dependency_runs: list[ToolRun],
         security_findings: list[SecurityFinding],
+        behavior_confidence: float | None = None,
     ) -> RiskInput:
         existing_status = self._combined_status(existing_test_runs)
         generated_status = self._combined_status(
@@ -166,6 +169,7 @@ class RiskScoreService:
             no_existing_tests_found=self._no_existing_tests_found(existing_test_runs),
             diff_too_large_for_full_analysis=self._diff_too_large(changed_files),
             behavior_changed=source_changed,
+            behavior_confidence=behavior_confidence,
         )
 
     def _change_size_risk(self, risk_input: RiskInput, reasons: list[RiskReason]) -> int:
@@ -565,6 +569,17 @@ class RiskScoreService:
             for file in changed_files
         )
         return total_lines > 2500 or missing_python_patches
+
+    @staticmethod
+    def _contract_confidence(report: RiskReport | PatchGuardReport) -> float | None:
+        run = getattr(report, "contract_extraction", None)
+        if run is None:
+            return None
+        if run.status == RunStatus.PASSED:
+            return report.behavioral_contract.confidence
+        if run.status == RunStatus.ERROR:
+            return 0.0
+        return None
 
     @staticmethod
     def _reason(

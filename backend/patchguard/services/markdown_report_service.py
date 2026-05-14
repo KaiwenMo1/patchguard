@@ -33,10 +33,13 @@ def render_markdown_report(report: RiskReport | PatchGuardReport) -> str:
         lines.extend(_pr_section(pr))
     if report.errors:
         lines.extend(_list_section("Pipeline Errors", report.errors))
+    lines.extend(_policy_section(report))
+    lines.extend(_behavioral_contract_section(report))
     lines.extend(_changed_files_section(report.changed_files))
     lines.extend(_risk_reasons_section(report.risk_reasons))
     lines.extend(_run_section("Existing Tests", _existing_test_runs(report)))
     lines.extend(_run_section("Generated Tests", report.generated_test_results))
+    lines.extend(_failure_mappings_section(report.failure_mappings))
     lines.extend(_run_section("Static Analysis", report.static_analysis_results))
     lines.extend(_security_section(report.security_findings))
     lines.extend(_generated_tests_section(report.generated_tests))
@@ -101,6 +104,78 @@ def _risk_reasons_section(reasons: list[Any]) -> list[str]:
         lines.append(
             f"- `+{reason.score_impact}` **{escape_markdown(reason.category)}:** "
             f"{escape_markdown(reason.reason)}"
+        )
+    lines.append("")
+    return lines
+
+
+def _policy_section(report: RiskReport | PatchGuardReport) -> list[str]:
+    decision = report.policy_decision
+    lines = [
+        "## Policy Gate",
+        "",
+        f"- **Decision:** `{_value(decision.decision)}`",
+        f"- **Triggered rules:** `{', '.join(decision.triggered_rules) or 'none'}`",
+    ]
+    if decision.config_path:
+        lines.append(f"- **Config:** `{escape_markdown(decision.config_path)}`")
+    if decision.reasons:
+        lines.append("")
+        lines.extend(f"- {escape_markdown(reason)}" for reason in decision.reasons)
+    lines.append("")
+    return lines
+
+
+def _behavioral_contract_section(report: RiskReport | PatchGuardReport) -> list[str]:
+    contract = report.behavioral_contract
+    run = report.contract_extraction
+    lines = [
+        "## Behavioral Contract",
+        "",
+        f"- **Extraction:** `{_value(run.status) if run else 'not_run'}`",
+        f"- **Confidence:** `{contract.confidence:.2f}`",
+    ]
+    if run:
+        lines.append(f"- **Summary:** {escape_markdown(run.summary)}")
+    sections = [
+        ("Intended new behavior", contract.intended_new_behaviors),
+        ("Behavior to preserve", contract.existing_behaviors_to_preserve),
+        ("Edge cases", contract.edge_cases_to_test),
+        ("Invalid inputs", contract.invalid_inputs_to_test),
+        ("Uncertainties", contract.contract_uncertainties),
+    ]
+    for title, values in sections:
+        lines.extend(["", f"**{title}:**"])
+        if values:
+            lines.extend(f"- {escape_markdown(value)}" for value in values)
+        else:
+            lines.append("- none recorded")
+    lines.append("")
+    return lines
+
+
+def _failure_mappings_section(mappings: list[Any]) -> list[str]:
+    if not mappings:
+        return ["## Failed Generated Test Mappings", "", "No generated test failures were mapped.", ""]
+    lines = [
+        "## Failed Generated Test Mappings",
+        "",
+        "| Failed test | Target | Behavior | Failure | Next step |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for mapping in mappings:
+        target = (
+            f"{mapping.target_file or 'unknown'}::{mapping.target_function}"
+            if mapping.target_function
+            else mapping.target_file or "unknown"
+        )
+        lines.append(
+            "| "
+            f"`{escape_markdown(mapping.failed_test)}` | "
+            f"`{escape_markdown(target)}` | "
+            f"{escape_markdown(mapping.behavior_checked or 'unknown')} | "
+            f"{escape_markdown(mapping.failure_summary)} | "
+            f"{escape_markdown(mapping.suggested_next_step)} |"
         )
     lines.append("")
     return lines

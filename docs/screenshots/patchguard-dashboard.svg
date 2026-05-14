@@ -1,0 +1,68 @@
+<svg width="1200" height="720" viewBox="0 0 1200 720" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">PatchGuard static demo preview</title>
+  <desc id="desc">Preview of the PatchGuard dashboard with risk score, policy gate, pull request metadata, behavioral contract, and evidence tables.</desc>
+  <rect width="1200" height="720" fill="#f6f8fa"/>
+  <rect width="1200" height="64" fill="white"/>
+  <rect y="63" width="1200" height="1" fill="#d0d7de"/>
+  <rect x="48" y="17" width="32" height="32" rx="7" fill="#0969da"/>
+  <text x="96" y="31" fill="#24292f" font-family="Arial, sans-serif" font-size="15" font-weight="700">PatchGuard</text>
+  <text x="96" y="50" fill="#57606a" font-family="Arial, sans-serif" font-size="12">CI for AI-generated code</text>
+  <text x="984" y="39" fill="#57606a" font-family="Arial, sans-serif" font-size="14" font-weight="700">Static demo reports</text>
+
+  <rect x="48" y="96" width="672" height="214" rx="8" fill="white" stroke="#d0d7de"/>
+  <text x="80" y="134" fill="#0969da" font-family="Arial, sans-serif" font-size="14" font-weight="700">Evidence-backed PR verification</text>
+  <text x="80" y="182" fill="#24292f" font-family="Arial, sans-serif" font-size="44" font-weight="700">PatchGuard</text>
+  <text x="80" y="224" fill="#57606a" font-family="Arial, sans-serif" font-size="18">Most AI PR review bots generate comments.</text>
+  <text x="80" y="252" fill="#57606a" font-family="Arial, sans-serif" font-size="18">PatchGuard generates test, scan, and risk evidence.</text>
+  <rect x="80" y="278" width="156" height="12" rx="6" fill="#ddf4ff"/>
+  <rect x="252" y="278" width="132" height="12" rx="6" fill="#dafbe1"/>
+  <rect x="400" y="278" width="112" height="12" rx="6" fill="#fff8c5"/>
+
+  <rect x="744" y="96" width="408" height="214" rx="8" fill="white" stroke="#d0d7de"/>
+  <text x="776" y="134" fill="#57606a" font-family="Arial, sans-serif" font-size="12" font-weight="700">CURRENT STEP</text>
+  <text x="776" y="174" fill="#24292f" font-family="Arial, sans-serif" font-size="30" font-weight="700">Report ready</text>
+  <circle cx="790" cy="218" r="13" fill="#1a7f37"/>
+  <circle cx="790" cy="258" r="13" fill="#1a7f37"/>
+  <circle cx="996" cy="218" r="13" fill="#1a7f37"/>
+  <circle cx="996" cy="258" r="13" fill="#1a7f37"/>
+  <text x="814" y="223" fill="#57606a" font-family="Arial, sans-serif" font-size="14">Diff analyzed</text>
+  <text x="814" y="263" fill="#57606a" font-family="Arial, sans-serif" font-size="14">Tests run</text>
+  <text x="1020" y="223" fill="#57606a" font-family="Arial, sans-serif" font-size="14">Security scan</text>
+  <text x="1020" y="263" fill="#57606a" font-family="Arial, sans-serif" font-size="14">Policy gate</text>
+
+  <rect x="48" y="334" width="256" height="286" rx="8" fill="white" stroke="#d0d7de"/>
+  <text x="80" y="372" fill="#57606a" font-family="Arial, sans-serif" font-size="12" font-weight="700">MERGE RISK</text>
+  <text x="80" y="450" fill="#cf222e" font-family="Arial, sans-serif" font-size="72" font-weight="800">70</text>
+  <text x="176" y="450" fill="#57606a" font-family="Arial, sans-serif" font-size="24" font-weight="700">/100</text>
+  <rect x="80" y="476" width="192" height="10" rx="5" fill="#eaeef2"/>
+  <rect x="80" y="476" width="134" height="10" rx="5" fill="#cf222e"/>
+  <text x="80" y="532" fill="#24292f" font-family="Arial, sans-serif" font-size="16" font-weight="700">Recommendation</text>
+  <text x="80" y="562" fill="#57606a" font-family="Arial, sans-serif" font-size="15">Merge only after</text>
+  <text x="80" y="586" fill="#57606a" font-family="Arial, sans-serif" font-size="15">human review.</text>
+
+  <rect x="328" y="334" width="256" height="286" rx="8" fill="white" stroke="#d0d7de"/>
+  <text x="360" y="372" fill="#57606a" font-family="Arial, sans-serif" font-size="12" font-weight="700">POLICY GATE</text>
+  <rect x="360" y="406" width="80" height="28" rx="14" fill="#ffebe9"/>
+  <text x="381" y="425" fill="#cf222e" font-family="Arial, sans-serif" font-size="13" font-weight="700">block</text>
+  <text x="360" y="474" fill="#24292f" font-family="Arial, sans-serif" font-size="18" font-weight="700">Review required</text>
+  <rect x="360" y="502" width="192" height="44" rx="6" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="374" y="529" fill="#57606a" font-family="Arial, sans-serif" font-size="13">risk_threshold</text>
+  <rect x="360" y="558" width="192" height="44" rx="6" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="374" y="585" fill="#57606a" font-family="Arial, sans-serif" font-size="13">partial_evidence</text>
+
+  <rect x="608" y="334" width="544" height="286" rx="8" fill="white" stroke="#d0d7de"/>
+  <text x="640" y="372" fill="#57606a" font-family="Arial, sans-serif" font-size="12" font-weight="700">BEHAVIORAL CONTRACT</text>
+  <text x="640" y="410" fill="#24292f" font-family="Arial, sans-serif" font-size="24" font-weight="700">Evidence that explains what to test</text>
+  <rect x="640" y="444" width="224" height="64" rx="6" fill="white" stroke="#d0d7de"/>
+  <text x="656" y="470" fill="#24292f" font-family="Arial, sans-serif" font-size="14" font-weight="700">Behavior changed</text>
+  <text x="656" y="492" fill="#57606a" font-family="Arial, sans-serif" font-size="13">Parser edge case</text>
+  <rect x="888" y="444" width="224" height="64" rx="6" fill="white" stroke="#d0d7de"/>
+  <text x="904" y="470" fill="#24292f" font-family="Arial, sans-serif" font-size="14" font-weight="700">Security finding</text>
+  <text x="904" y="492" fill="#57606a" font-family="Arial, sans-serif" font-size="13">Unsafe eval detected</text>
+  <rect x="640" y="532" width="472" height="54" rx="6" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="656" y="564" fill="#57606a" font-family="Arial, sans-serif" font-size="14">Failed generated test → target function → next step</text>
+
+  <rect x="48" y="648" width="1104" height="40" rx="8" fill="white" stroke="#d0d7de"/>
+  <text x="80" y="673" fill="#24292f" font-family="Arial, sans-serif" font-size="15" font-weight="700">Zero-install demo:</text>
+  <text x="210" y="673" fill="#57606a" font-family="Arial, sans-serif" font-size="15">loads checked-in reports without Docker, FastAPI, GitHub, or OpenAI.</text>
+</svg>

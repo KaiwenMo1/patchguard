@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated_at": "2026-05-13T02:00:25.638667Z",
+  "generated_at": "2026-05-14T17:39:59.643049Z",
   "status": "complete",
   "errors": [],
   "pr": {
@@ -51,12 +51,21 @@
       "parse_error": null
     }
   ],
-  "generated_tests": [],
-  "test_generation": {
-    "name": "generate LLM pytest tests",
-    "kind": "test_generation",
+  "behavioral_contract": {
+    "intended_new_behaviors": [],
+    "existing_behaviors_to_preserve": [],
+    "edge_cases_to_test": [],
+    "invalid_inputs_to_test": [],
+    "contract_uncertainties": [
+      "Behavioral contract extraction disabled by --skip-llm"
+    ],
+    "confidence": 0.0
+  },
+  "contract_extraction": {
+    "name": "extract behavioral contract",
+    "kind": "contract_extraction",
     "status": "skipped",
-    "summary": "OPENAI_API_KEY is not set; LLM test generation skipped",
+    "summary": "Behavioral contract extraction disabled by --skip-llm",
     "command": {
       "command": [
         "openai",
@@ -69,7 +78,31 @@
       "duration_seconds": 0.0,
       "timed_out": false,
       "skipped": true,
-      "skip_reason": "OPENAI_API_KEY is not set; LLM test generation skipped"
+      "skip_reason": "Behavioral contract extraction disabled by --skip-llm"
+    },
+    "findings_count": 0
+  },
+  "generated_tests": [],
+  "generated_test_metadata": [],
+  "failure_mappings": [],
+  "test_generation": {
+    "name": "generate LLM pytest tests",
+    "kind": "test_generation",
+    "status": "skipped",
+    "summary": "LLM test generation disabled by --skip-llm",
+    "command": {
+      "command": [
+        "openai",
+        "responses",
+        "create"
+      ],
+      "exit_code": null,
+      "stdout_tail": "",
+      "stderr_tail": "",
+      "duration_seconds": 0.0,
+      "timed_out": false,
+      "skipped": true,
+      "skip_reason": "LLM test generation disabled by --skip-llm"
     },
     "findings_count": 0
   },
@@ -78,7 +111,7 @@
       "name": "run generated PatchGuard tests",
       "kind": "generated_tests",
       "status": "skipped",
-      "summary": "OPENAI_API_KEY is not set; LLM test generation skipped",
+      "summary": "LLM test generation disabled by --skip-llm",
       "command": {
         "command": [
           "docker",
@@ -92,7 +125,7 @@
         "duration_seconds": 0.0,
         "timed_out": false,
         "skipped": true,
-        "skip_reason": "OPENAI_API_KEY is not set; LLM test generation skipped"
+        "skip_reason": "LLM test generation disabled by --skip-llm"
       },
       "findings_count": 0
     }
@@ -101,8 +134,8 @@
     {
       "name": "run existing pytest suite",
       "status": "passed",
-      "command": "docker run --rm --network none --cpus 2 --memory 1g -v /home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_security_bug-20260513T020025634013Z/repo:/app -w /app patchguard-python-sandbox:latest bash -lc python -m pytest -q",
-      "stdout": ".                                                                        [100%]\n1 passed in 0.85s\n",
+      "command": "docker run --rm --network none --cpus 2 --memory 1g -v /home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_security_bug-20260514T173959639037Z/repo:/app -w /app patchguard-python-sandbox:latest bash -lc python -m pytest -q",
+      "stdout": ".                                                                        [100%]\n1 passed in 0.45s\n",
       "stderr": ""
     }
   ],
@@ -111,10 +144,10 @@
       "tool": "bandit",
       "severity": "MEDIUM",
       "confidence": "HIGH",
-      "filename": "./security_demo/rules.py",
+      "filename": "security_demo/rules.py",
       "line_number": 3,
       "message": "Use of possibly insecure function - consider using safer ast.literal_eval.",
-      "file": "./security_demo/rules.py",
+      "file": "security_demo/rules.py",
       "line": 3,
       "issue_text": "Use of possibly insecure function - consider using safer ast.literal_eval.",
       "issue_code": "B307",
@@ -159,7 +192,7 @@
           "--memory",
           "1g",
           "-v",
-          "/home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_security_bug-20260513T020025634013Z/repo:/app",
+          "/home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_security_bug-20260514T173959639037Z/repo:/app",
           "-w",
           "/app",
           "patchguard-python-sandbox:latest",
@@ -170,7 +203,7 @@
         "exit_code": 0,
         "stdout_tail": "[]",
         "stderr_tail": "",
-        "duration_seconds": 0.631,
+        "duration_seconds": 0.43,
         "timed_out": false,
         "skipped": false,
         "skip_reason": null
@@ -181,7 +214,7 @@
       "name": "bandit security scan",
       "kind": "security_scan",
       "status": "failed",
-      "summary": "bandit reported 1 security finding(s)",
+      "summary": "bandit reported 1 changed-file security finding(s)",
       "command": {
         "command": [
           "docker",
@@ -194,7 +227,7 @@
           "--memory",
           "1g",
           "-v",
-          "/home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_security_bug-20260513T020025634013Z/repo:/app",
+          "/home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_security_bug-20260514T173959639037Z/repo:/app",
           "-w",
           "/app",
           "patchguard-python-sandbox:latest",
@@ -203,9 +236,9 @@
           "python -m bandit -r . -f json -q"
         ],
         "exit_code": 1,
-        "stdout_tail": "{\n  \"errors\": [],\n  \"generated_at\": \"2026-05-13T02:00:30Z\",\n  \"metrics\": {\n    \"./security_demo/__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 2,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"./security_demo/rules.py\": {\n      \"CONFIDENCE.HIGH\": 1,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 1,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 3,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"./tests/test_rules.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 8,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"_totals\": {\n      \"CONFIDENCE.HIGH\": 1,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 1,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 13,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    }\n  },\n  \"results\": [\n    {\n      \"code\": \"2     \\\"\\\"\\\"Evaluate a tiny user-visible rule expression.\\\"\\\"\\\"\\n3     return eval(expression, {}, context)\\n\",\n      \"col_offset\": 11,\n      \"end_col_offset\": 40,\n      \"filename\": \"./security_demo/rules.py\",\n      \"issue_confidence\": \"HIGH\",\n      \"issue_cwe\": {\n        \"id\": 78,\n        \"link\": \"https://cwe.mitre.org/data/definitions/78.html\"\n      },\n      \"issue_severity\": \"MEDIUM\",\n      \"issue_text\": \"Use of possibly insecure function - consider using safer ast.literal_eval.\",\n      \"line_number\": 3,\n      \"line_range\": [\n        3\n      ],\n      \"more_info\": \"https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b307-eval\",\n      \"test_id\": \"B307\",\n      \"test_name\": \"blacklist\"\n    }\n  ]\n}",
+        "stdout_tail": "{\n  \"errors\": [],\n  \"generated_at\": \"2026-05-14T17:40:02Z\",\n  \"metrics\": {\n    \"./security_demo/__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 2,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"./security_demo/rules.py\": {\n      \"CONFIDENCE.HIGH\": 1,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 1,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 3,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"./tests/test_rules.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 8,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"_totals\": {\n      \"CONFIDENCE.HIGH\": 1,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 1,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 13,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    }\n  },\n  \"results\": [\n    {\n      \"code\": \"2     \\\"\\\"\\\"Evaluate a tiny user-visible rule expression.\\\"\\\"\\\"\\n3     return eval(expression, {}, context)\\n\",\n      \"col_offset\": 11,\n      \"end_col_offset\": 40,\n      \"filename\": \"./security_demo/rules.py\",\n      \"issue_confidence\": \"HIGH\",\n      \"issue_cwe\": {\n        \"id\": 78,\n        \"link\": \"https://cwe.mitre.org/data/definitions/78.html\"\n      },\n      \"issue_severity\": \"MEDIUM\",\n      \"issue_text\": \"Use of possibly insecure function - consider using safer ast.literal_eval.\",\n      \"line_number\": 3,\n      \"line_range\": [\n        3\n      ],\n      \"more_info\": \"https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b307-eval\",\n      \"test_id\": \"B307\",\n      \"test_name\": \"blacklist\"\n    }\n  ]\n}",
         "stderr_tail": "",
-        "duration_seconds": 1.133,
+        "duration_seconds": 0.661,
         "timed_out": false,
         "skipped": false,
         "skip_reason": null
@@ -229,9 +262,9 @@
           "patchguard-python-sandbox:latest"
         ],
         "exit_code": 0,
-        "stdout_tail": "[\n    {\n        \"Id\": \"sha256:ab2be547f772c1949da78677079f4702c9789658f363c9da940fe1ff51556f4a\",\n        \"RepoTags\": [\n            \"patchguard-python-sandbox:latest\"\n        ],\n        \"RepoDigests\": [\n            \"patchguard-python-sandbox@sha256:ab2be547f772c1949da78677079f4702c9789658f363c9da940fe1ff51556f4a\"\n        ],\n        \"Comment\": \"buildkit.dockerfile.v0\",\n        \"Created\": \"2026-05-12T02:01:45.088208872Z\",\n        \"Config\": {\n            \"Env\": [\n                \"PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"LANG=C.UTF-8\",\n                \"GPG_KEY=A035C8C19219BA821ECEA86B64E628F8D684696D\",\n                \"PYTHON_VERSION=3.11.15\",\n                \"PYTHON_SHA256=272179ddd9a2e41a0fc8e42e33dfbdca0b3711aa5abf372d3f2d51543d09b625\",\n                \"PYTHONDONTWRITEBYTECODE=1\",\n                \"PYTHONUNBUFFERED=1\",\n                \"PIP_DISABLE_PIP_VERSION_CHECK=1\"\n            ],\n            \"Cmd\": [\n                \"python3\"\n            ],\n            \"WorkingDir\": \"/app\"\n        },\n        \"Architecture\": \"amd64\",\n        \"Os\": \"linux\",\n        \"Size\": 68898528,\n        \"RootFS\": {\n            \"Type\": \"layers\",\n            \"Layers\": [\n                \"sha256:79dd1f4c855cd061f687a994426634cf5f84c8ecdbc66c7a7d118e828dd93c99\",\n                \"sha256:2e53cb234c597e3f6a8f896df5efafd6ceca83645632661f2e32cd7144b43738\",\n                \"sha256:799edc77eb3d21542943122b97c5ba1e80c2a1eb3d222e23196717126398ef61\",\n                \"sha256:94e760ec30748f73d19bcb5d4da140b8dde956299eac18e3372d89236f56c995\",\n                \"sha256:620878ea0ceb365960aed2679a80b3db80b8d383e397f9d0aeafe1d8af066c3e\",\n                \"sha256:f3cbeed2976a94abfbcd04743e62de3f07b8dc76f60b8da8b19bce8164efa5ff\"\n            ]\n        },\n        \"Metadata\": {\n            \"LastTagTime\": \"2026-05-12T02:01:47.162892887Z\"\n        },\n        \"Descriptor\": {\n            \"mediaType\": \"application/vnd.oci.image.index.v1+json\",\n            \"digest\": \"sha256:ab2be547f772c1949da78677079f4702c9789658f363c9da940fe1ff51556f4a\",\n            \"size\": 856\n        },\n        \"Identity\": {\n            \"Build\": [\n                {\n                    \"Ref\": \"owyycqphlijl1jvq041pq2a0w\",\n                    \"CreatedAt\": \"2026-05-12T02:01:47.681450743Z\"\n                }\n            ]\n        }\n    }\n]\n",
+        "stdout_tail": "[\n    {\n        \"Id\": \"sha256:fc6a33a2491097f7d827d377522a3634fe04bd24912bc8904033529978b5bb37\",\n        \"RepoTags\": [\n            \"patchguard-python-sandbox:latest\"\n        ],\n        \"RepoDigests\": [\n            \"patchguard-python-sandbox@sha256:fc6a33a2491097f7d827d377522a3634fe04bd24912bc8904033529978b5bb37\"\n        ],\n        \"Comment\": \"buildkit.dockerfile.v0\",\n        \"Created\": \"2026-05-12T02:01:45.088208872Z\",\n        \"Config\": {\n            \"Env\": [\n                \"PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"LANG=C.UTF-8\",\n                \"GPG_KEY=A035C8C19219BA821ECEA86B64E628F8D684696D\",\n                \"PYTHON_VERSION=3.11.15\",\n                \"PYTHON_SHA256=272179ddd9a2e41a0fc8e42e33dfbdca0b3711aa5abf372d3f2d51543d09b625\",\n                \"PYTHONDONTWRITEBYTECODE=1\",\n                \"PYTHONUNBUFFERED=1\",\n                \"PIP_DISABLE_PIP_VERSION_CHECK=1\"\n            ],\n            \"Cmd\": [\n                \"python3\"\n            ],\n            \"WorkingDir\": \"/app\"\n        },\n        \"Architecture\": \"amd64\",\n        \"Os\": \"linux\",\n        \"Size\": 68898528,\n        \"RootFS\": {\n            \"Type\": \"layers\",\n            \"Layers\": [\n                \"sha256:79dd1f4c855cd061f687a994426634cf5f84c8ecdbc66c7a7d118e828dd93c99\",\n                \"sha256:2e53cb234c597e3f6a8f896df5efafd6ceca83645632661f2e32cd7144b43738\",\n                \"sha256:799edc77eb3d21542943122b97c5ba1e80c2a1eb3d222e23196717126398ef61\",\n                \"sha256:94e760ec30748f73d19bcb5d4da140b8dde956299eac18e3372d89236f56c995\",\n                \"sha256:620878ea0ceb365960aed2679a80b3db80b8d383e397f9d0aeafe1d8af066c3e\",\n                \"sha256:f3cbeed2976a94abfbcd04743e62de3f07b8dc76f60b8da8b19bce8164efa5ff\"\n            ]\n        },\n        \"Metadata\": {\n            \"LastTagTime\": \"2026-05-14T01:26:07.775487893Z\"\n        },\n        \"Descriptor\": {\n            \"mediaType\": \"application/vnd.oci.image.index.v1+json\",\n            \"digest\": \"sha256:fc6a33a2491097f7d827d377522a3634fe04bd24912bc8904033529978b5bb37\",\n            \"size\": 856\n        },\n        \"Identity\": {\n            \"Build\": [\n                {\n                    \"Ref\": \"ydzr6nskobzkyv0edznqvyd9n\",\n                    \"CreatedAt\": \"2026-05-14T01:26:07.793490422Z\"\n                }\n            ]\n        }\n    }\n]\n",
         "stderr_tail": "",
-        "duration_seconds": 0.069,
+        "duration_seconds": 0.043,
         "timed_out": false,
         "skipped": false,
         "skip_reason": null
@@ -255,7 +288,7 @@
           "--memory",
           "1g",
           "-v",
-          "/home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_security_bug-20260513T020025634013Z/repo:/app",
+          "/home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_security_bug-20260514T173959639037Z/repo:/app",
           "-w",
           "/app",
           "patchguard-python-sandbox:latest",
@@ -266,7 +299,7 @@
         "exit_code": 0,
         "stdout_tail": "",
         "stderr_tail": "WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.\n",
-        "duration_seconds": 1.491,
+        "duration_seconds": 0.902,
         "timed_out": false,
         "skipped": false,
         "skip_reason": null
@@ -291,7 +324,7 @@
         "--memory",
         "1g",
         "-v",
-        "/home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_security_bug-20260513T020025634013Z/repo:/app",
+        "/home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_security_bug-20260514T173959639037Z/repo:/app",
         "-w",
         "/app",
         "patchguard-python-sandbox:latest",
@@ -302,7 +335,7 @@
       "exit_code": 0,
       "stdout_tail": "",
       "stderr_tail": "WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.\n",
-      "duration_seconds": 1.491,
+      "duration_seconds": 0.902,
       "timed_out": false,
       "skipped": false,
       "skip_reason": null
@@ -326,7 +359,7 @@
         "--memory",
         "1g",
         "-v",
-        "/home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_security_bug-20260513T020025634013Z/repo:/app",
+        "/home/kaiwenmo/patch_guard/.patchguard_workspaces/demo_security_bug-20260514T173959639037Z/repo:/app",
         "-w",
         "/app",
         "patchguard-python-sandbox:latest",
@@ -335,36 +368,154 @@
         "python -m pytest -q"
       ],
       "exit_code": 0,
-      "stdout_tail": ".                                                                        [100%]\n1 passed in 0.85s\n",
+      "stdout_tail": ".                                                                        [100%]\n1 passed in 0.45s\n",
       "stderr_tail": "",
-      "duration_seconds": 2.162,
+      "duration_seconds": 1.29,
       "timed_out": false,
       "skipped": false,
       "skip_reason": null
     },
     "findings_count": 0
   },
-  "workspace_path": ".patchguard_workspaces/demo_security_bug-20260513T020025634013Z/repo",
-  "risk_score": 50,
-  "risk_level": "medium",
+  "workspace_path": null,
+  "risk_score": 70,
+  "risk_level": "high",
+  "risk_breakdown": {
+    "overall_score": 70,
+    "risk_level": "high",
+    "change_size_risk": 0,
+    "test_coverage_risk": 80,
+    "behavioral_risk": 100,
+    "security_risk": 80,
+    "uncertainty_risk": 25,
+    "reasons": [
+      {
+        "category": "test_coverage",
+        "score_impact": 80,
+        "reason": "Source files changed without test files changing",
+        "severity": "high",
+        "evidence": []
+      },
+      {
+        "category": "behavioral",
+        "score_impact": 30,
+        "reason": "Python source behavior changed",
+        "severity": "low",
+        "evidence": []
+      },
+      {
+        "category": "behavioral",
+        "score_impact": 85,
+        "reason": "Security-sensitive code path changed",
+        "severity": "high",
+        "evidence": []
+      },
+      {
+        "category": "security",
+        "score_impact": 45,
+        "reason": "1 medium severity security finding(s)",
+        "severity": "high",
+        "evidence": []
+      },
+      {
+        "category": "security",
+        "score_impact": 35,
+        "reason": "Security-sensitive filename changed",
+        "severity": "medium",
+        "evidence": []
+      },
+      {
+        "category": "uncertainty",
+        "score_impact": 25,
+        "reason": "Generated regression tests did not run",
+        "severity": "low",
+        "evidence": [
+          "status=skipped"
+        ]
+      },
+      {
+        "category": "risk_floor",
+        "score_impact": 2,
+        "reason": "Security-sensitive source changed without test changes",
+        "severity": "high",
+        "evidence": [
+          "weighted_score=68",
+          "floor_score=70"
+        ]
+      }
+    ]
+  },
   "risk_reasons": [
     {
       "category": "test_coverage",
-      "score_impact": 20,
-      "reason": "Source files changed without test files changing"
+      "score_impact": 80,
+      "reason": "Source files changed without test files changing",
+      "severity": "high",
+      "evidence": []
     },
     {
-      "category": "security_sensitive",
-      "score_impact": 20,
-      "reason": "Security-sensitive file changed: security_demo/rules.py"
+      "category": "behavioral",
+      "score_impact": 30,
+      "reason": "Python source behavior changed",
+      "severity": "low",
+      "evidence": []
+    },
+    {
+      "category": "behavioral",
+      "score_impact": 85,
+      "reason": "Security-sensitive code path changed",
+      "severity": "high",
+      "evidence": []
     },
     {
       "category": "security",
-      "score_impact": 10,
-      "reason": "Bandit reported 1 security finding(s)"
+      "score_impact": 45,
+      "reason": "1 medium severity security finding(s)",
+      "severity": "high",
+      "evidence": []
+    },
+    {
+      "category": "security",
+      "score_impact": 35,
+      "reason": "Security-sensitive filename changed",
+      "severity": "medium",
+      "evidence": []
+    },
+    {
+      "category": "uncertainty",
+      "score_impact": 25,
+      "reason": "Generated regression tests did not run",
+      "severity": "low",
+      "evidence": [
+        "status=skipped"
+      ]
+    },
+    {
+      "category": "risk_floor",
+      "score_impact": 2,
+      "reason": "Security-sensitive source changed without test changes",
+      "severity": "high",
+      "evidence": [
+        "weighted_score=68",
+        "floor_score=70"
+      ]
     }
   ],
-  "merge_decision": "merge_with_caution",
-  "recommendation": "Likely safe to merge after normal review.",
+  "policy_decision": {
+    "decision": "block",
+    "reasons": [
+      "Risk score 70 is at or above threshold 70.",
+      "Sensitive source path changed without tests changing.",
+      "One or more evidence steps were skipped or incomplete."
+    ],
+    "triggered_rules": [
+      "risk_threshold",
+      "auth_code_without_tests",
+      "partial_evidence"
+    ],
+    "config_path": null
+  },
+  "merge_decision": "manual_review",
+  "recommendation": "Merge only after human review.",
   "report_path": "examples/sample_reports/demo_security_bug.json"
 }

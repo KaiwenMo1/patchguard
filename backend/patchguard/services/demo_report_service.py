@@ -18,10 +18,13 @@ from patchguard.models import (
     TestResult,
     ToolRun,
 )
+from patchguard.services.contract_extraction_service import ContractExtractionService
 from patchguard.services.function_extractor import FunctionExtractor
+from patchguard.services.policy_service import PolicyService
 from patchguard.services.risk_score_service import RiskScoreService
 from patchguard.services.sandbox_service import SandboxService
 from patchguard.services.security_scan_service import SecurityScanService
+from patchguard.services.test_failure_mapping_service import TestFailureMappingService
 from patchguard.services.test_generation_service import TestGenerationService
 from patchguard.utils.command_runner import CommandRunner
 from patchguard.utils.file_utils import ensure_dir
@@ -41,8 +44,11 @@ class DemoReportService:
         self.settings = settings or PatchGuardSettings()
         self.command_runner = command_runner or CommandRunner()
         self.function_extractor = FunctionExtractor()
+        self.contract_extraction_service = ContractExtractionService()
         self.test_generation_service = TestGenerationService()
+        self.failure_mapping_service = TestFailureMappingService()
         self.risk_score_service = RiskScoreService()
+        self.policy_service = PolicyService()
 
     def analyze(
         self,
@@ -51,6 +57,7 @@ class DemoReportService:
         *,
         workspaces_dir: str | Path | None = None,
         skip_docker: bool = False,
+        skip_llm: bool = False,
         cleanup_workspace: bool = False,
     ) -> RiskReport:
         demo_path = Path(demo_dir)
@@ -80,12 +87,33 @@ class DemoReportService:
             repo_dir,
             report.changed_files,
         )
-        generation = self.test_generation_service.generate(
+        contract_service = (
+            ContractExtractionService(enabled=False)
+            if skip_llm
+            else self.contract_extraction_service
+        )
+        contract = contract_service.extract(
+            repo_dir,
+            pr_title=report.pr.title,
+            pr_body=None,
+            changed_files=report.changed_files,
+            changed_functions=report.changed_functions,
+        )
+        report.behavioral_contract = contract.contract
+        report.contract_extraction = contract.tool_run
+        generation_service = (
+            TestGenerationService(enabled=False)
+            if skip_llm
+            else self.test_generation_service
+        )
+        generation = generation_service.generate(
             repo_dir,
             report.changed_files,
             report.changed_functions,
+            behavioral_contract=report.behavioral_contract,
         )
         report.generated_tests = generation.generated_tests
+        report.generated_test_metadata = generation.metadata
         report.test_generation = generation.tool_run
 
         if skip_docker:
@@ -99,7 +127,12 @@ class DemoReportService:
             shutil.rmtree(workspace, ignore_errors=True)
             report.workspace_path = None
 
+        report.failure_mappings = self.failure_mapping_service.map_failures(
+            report.generated_test_results,
+            report.generated_test_metadata,
+        )
         self.risk_score_service.score_risk_report(report)
+        self.policy_service.apply(report, repo_dir=repo_dir)
         path = Path(output_path)
         ensure_dir(path.parent)
         report.report_path = str(path)

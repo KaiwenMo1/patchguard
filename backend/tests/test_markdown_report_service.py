@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from patchguard.models import (
+    BehavioralContract,
     ChangedFile,
     PullRequestInfo,
     RiskReason,
@@ -39,6 +40,12 @@ def test_markdown_report_is_readable() -> None:
                 classification="source",
             )
         ],
+        behavioral_contract=BehavioralContract(
+            intended_new_behaviors=["empty input returns an empty result"],
+            existing_behaviors_to_preserve=["valid input still parses"],
+            edge_cases_to_test=["blank lines"],
+            confidence=0.7,
+        ),
         risk_score=30,
         risk_reasons=[
             RiskReason(
@@ -71,5 +78,7 @@ def test_markdown_report_is_readable() -> None:
     assert "**Risk:** `30/100` (`low`)" in markdown
     assert "Tighten parser behavior" in markdown
     assert "`parser_demo/parser.py`" in markdown
+    assert "## Behavioral Contract" in markdown
+    assert "empty input returns an empty result" in markdown
     assert "Use of eval detected." in markdown
     assert "## Existing Tests" in markdown

@@ -9,12 +9,12 @@ python -m pip install -e ".[dev]"
 docker build -t patchguard-python-sandbox:latest -f sandbox/python/Dockerfile sandbox/python
 ```
 
-To avoid OpenAI API charges while reproducing the checked-in reports, unset `OPENAI_API_KEY` for the command:
+To avoid OpenAI API charges while reproducing the checked-in reports, unset `OPENAI_API_KEY` and pass `--skip-llm`:
 
 ```bash
-env -u OPENAI_API_KEY python -m patchguard.cli analyze-demo examples/demo_parser_bug --out examples/sample_reports/demo_parser_bug.json
-env -u OPENAI_API_KEY python -m patchguard.cli analyze-demo examples/demo_security_bug --out examples/sample_reports/demo_security_bug.json
-env -u OPENAI_API_KEY python -m patchguard.cli analyze-demo examples/demo_no_tests_changed --out examples/sample_reports/demo_no_tests_changed.json
+env -u OPENAI_API_KEY patchguard analyze-demo examples/demo_parser_bug --out examples/sample_reports/demo_parser_bug.json --skip-llm
+env -u OPENAI_API_KEY patchguard analyze-demo examples/demo_security_bug --out examples/sample_reports/demo_security_bug.json --skip-llm
+env -u OPENAI_API_KEY patchguard analyze-demo examples/demo_no_tests_changed --out examples/sample_reports/demo_no_tests_changed.json --skip-llm
 ```
 
 ## Demo Scenarios
@@ -34,6 +34,7 @@ Status: complete
 Existing tests: passed (pytest passed)
 Static scans: ruff check=passed, bandit security scan=failed
 Security findings: 1
+Behavioral contract: skipped (Behavioral contract extraction disabled by --skip-llm)
 Changed files: 1 (+1/-3)
-Risk: 50/100 (medium)
+Risk: 70/100 (high)
 ```
