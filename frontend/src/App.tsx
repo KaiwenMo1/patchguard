@@ -1,12 +1,13 @@
 import {
   AlertTriangle,
+  ArrowUpRight,
   CheckCircle2,
   ChevronDown,
   CircleDashed,
   ClipboardList,
   Code2,
   FileCode2,
-  GitPullRequest,
+  Github,
   ListChecks,
   Loader2,
   Play,
@@ -208,47 +209,54 @@ export default function App() {
   const failedWithoutReport = analysis?.status === "failed" && !report;
 
   return (
-    <div className="min-h-screen bg-[#f6f8fa]">
-      <header className="border-b border-[#d0d7de] bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+    <div className="app-frame min-h-screen bg-[#0b0d0c]">
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      <header className="app-header">
+        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[#0969da] text-white">
+            <div className="brand-mark flex h-9 w-9 items-center justify-center rounded-md bg-[#74c69a] text-white">
               <ShieldCheck className="h-5 w-5" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-[#24292f]">PatchGuard</p>
-              <p className="text-xs text-[#57606a]">CI for AI-generated code</p>
+              <p className="text-sm font-semibold text-white">PatchGuard.</p>
+              <p className="text-xs text-[#a8b2ad]">Evidence architecture</p>
             </div>
           </div>
           <a
-            href="https://github.com"
-            className="hidden text-sm font-medium text-[#57606a] hover:text-[#0969da] sm:inline"
+            href="https://github.com/KaiwenMo1/patchguard"
+            className="header-link hidden items-center gap-2 text-sm font-medium text-[#c4ccc8] sm:inline-flex"
           >
-            Public GitHub PRs
+            <Github className="h-4 w-4" aria-hidden="true" />
+            View source
+            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
           </a>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
-          <div className="panel overflow-hidden">
-            <div className="border-b border-[#d0d7de] bg-white px-6 py-5">
-              <div className="flex items-center gap-2 text-sm font-medium text-[#0969da]">
-                <GitPullRequest className="h-4 w-4" aria-hidden="true" />
-                Evidence-backed PR verification
+      <main id="main-content" className="mx-auto max-w-[1400px] px-4 pb-20 sm:px-6 lg:px-8">
+        <section className="analysis-grid">
+          <div className="panel analysis-panel overflow-hidden">
+            <div className="analysis-intro border-b border-[#252b28] px-6 py-8 sm:px-10 sm:py-12 lg:px-14 lg:py-16">
+              <div className="signal-label flex items-center gap-2 text-xs font-semibold text-[#74c69a]">
+                <span className="signal-dot" aria-hidden="true" />
+                Verification studio
               </div>
-              <h1 className="mt-4 text-3xl font-semibold text-[#24292f] sm:text-4xl">PatchGuard</h1>
-              <p className="mt-2 max-w-2xl text-base leading-7 text-[#57606a]">
-                CI for AI-generated code. Submit a public Python PR and get changed-file evidence,
-                Docker test results, static scans, generated-test evidence, and a deterministic
-                merge-risk recommendation.
+              <h1 className="mt-7 max-w-2xl text-5xl font-semibold leading-[0.96] text-[#f3f5f4] sm:text-6xl lg:text-7xl">
+                Evidence
+                <span className="block font-normal italic text-[#9ca6a0]">Architecture.</span>
+              </h1>
+              <p className="mt-7 max-w-md text-base leading-7 text-[#9ca6a0]">
+                We turn uncertain pull requests into explainable evidence: tests, security findings,
+                and deterministic merge risk.
               </p>
             </div>
 
-            <form className="space-y-4 p-6" onSubmit={onSubmit}>
+            <form className="analysis-form max-w-[760px] space-y-4 px-6 pb-10 sm:px-10 sm:pb-12 lg:px-14 lg:pb-16" onSubmit={onSubmit}>
               {STATIC_DEMO_MODE ? (
                 <>
-                  <label htmlFor="demo-report" className="block text-sm font-medium text-[#24292f]">
+                  <label htmlFor="demo-report" className="block text-sm font-medium text-[#f3f5f4]">
                     Sample report
                   </label>
                   <div className="flex flex-col gap-3 sm:flex-row">
@@ -256,7 +264,7 @@ export default function App() {
                       id="demo-report"
                       value={selectedDemoId}
                       onChange={(event) => setSelectedDemoId(event.target.value)}
-                      className="min-h-11 flex-1 rounded-md border border-[#d0d7de] bg-white px-3 text-sm text-[#24292f] outline-none transition focus:border-[#0969da] focus:ring-2 focus:ring-[#0969da]/20"
+                      className="control-input min-h-11 flex-1 rounded-md border border-[#252b28] bg-[#111411] px-3 text-sm text-[#f3f5f4] outline-none transition focus:border-[#74c69a] focus:ring-2 focus:ring-[#74c69a]/20"
                     >
                       {DEMO_REPORTS.map((demo) => (
                         <option key={demo.id} value={demo.id}>
@@ -267,7 +275,7 @@ export default function App() {
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#0969da] px-5 text-sm font-semibold text-white transition hover:bg-[#0757b3] disabled:cursor-not-allowed disabled:bg-[#8c959f]"
+                      className="primary-action inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#74c69a] px-5 text-sm font-semibold text-white transition hover:bg-[#91d7b0] disabled:cursor-not-allowed disabled:bg-[#737d77]"
                     >
                       {isSubmitting ? (
                         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -277,9 +285,9 @@ export default function App() {
                       Load demo
                     </button>
                   </div>
-                  <div className="rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4">
-                    <p className="text-sm font-medium text-[#24292f]">Static GitHub Pages mode</p>
-                    <p className="mt-1 text-sm leading-6 text-[#57606a]">
+                  <div className="rounded-md border border-[#252b28] bg-[#0b0d0c] p-4">
+                    <p className="text-sm font-medium text-[#f3f5f4]">Static GitHub Pages mode</p>
+                    <p className="mt-1 text-sm leading-6 text-[#9ca6a0]">
                       This page loads real sample JSON reports generated by the PatchGuard CLI. It
                       does not call FastAPI, Docker, GitHub, or OpenAI.
                     </p>
@@ -295,11 +303,11 @@ export default function App() {
                           className={[
                             "rounded-md border px-3 py-2 text-left text-sm transition",
                             selectedDemoId === demo.id
-                              ? "border-[#0969da] bg-[#ddf4ff] text-[#24292f]"
-                              : "border-[#d0d7de] bg-white text-[#57606a] hover:border-[#0969da]",
+                              ? "border-[#74c69a] bg-[#15241c] text-[#f3f5f4]"
+                              : "border-[#252b28] bg-[#111411] text-[#9ca6a0] hover:border-[#74c69a]",
                           ].join(" ")}
                         >
-                          <span className="block font-medium text-[#24292f]">{demo.label}</span>
+                          <span className="block font-medium text-[#f3f5f4]">{demo.label}</span>
                           <span className="mt-1 block text-xs leading-5">{demo.description}</span>
                         </button>
                       ))}
@@ -308,7 +316,7 @@ export default function App() {
                 </>
               ) : (
                 <>
-                  <label htmlFor="pr-url" className="block text-sm font-medium text-[#24292f]">
+                  <label htmlFor="pr-url" className="block text-sm font-medium text-[#f3f5f4]">
                     GitHub pull request URL
                   </label>
                   <div className="flex flex-col gap-3 sm:flex-row">
@@ -317,12 +325,12 @@ export default function App() {
                       value={prUrl}
                       onChange={(event) => setPrUrl(event.target.value)}
                       placeholder="https://github.com/owner/repo/pull/123"
-                      className="min-h-11 flex-1 rounded-md border border-[#d0d7de] bg-white px-3 text-sm text-[#24292f] outline-none transition focus:border-[#0969da] focus:ring-2 focus:ring-[#0969da]/20"
+                      className="control-input min-h-11 flex-1 rounded-md border border-[#252b28] bg-[#111411] px-3 text-sm text-[#f3f5f4] outline-none transition focus:border-[#74c69a] focus:ring-2 focus:ring-[#74c69a]/20"
                     />
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#0969da] px-5 text-sm font-semibold text-white transition hover:bg-[#0757b3] disabled:cursor-not-allowed disabled:bg-[#8c959f]"
+                      className="primary-action inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#74c69a] px-5 text-sm font-semibold text-white transition hover:bg-[#91d7b0] disabled:cursor-not-allowed disabled:bg-[#737d77]"
                     >
                       {isSubmitting ? (
                         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -332,25 +340,25 @@ export default function App() {
                       Analyze
                     </button>
                   </div>
-                  <p className="text-sm text-[#57606a]">
+                  <p className="text-sm text-[#9ca6a0]">
                     The dashboard calls your local FastAPI backend. OpenAI generation is off by default.
                   </p>
-                  <div className="grid gap-3 rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4 sm:grid-cols-2">
-                    <label className="flex items-center gap-3 text-sm font-medium text-[#24292f]">
+                  <div className="grid gap-3 rounded-md border border-[#252b28] bg-[#0b0d0c] p-4 sm:grid-cols-2">
+                    <label className="flex items-center gap-3 text-sm font-medium text-[#f3f5f4]">
                       <input
                         type="checkbox"
                         checked={skipLlm}
                         onChange={(event) => setSkipLlm(event.target.checked)}
-                        className="h-4 w-4 rounded border-[#d0d7de] text-[#0969da] focus:ring-[#0969da]"
+                        className="h-4 w-4 rounded border-[#252b28] text-[#74c69a] focus:ring-[#74c69a]"
                       />
                       Skip OpenAI tests
                     </label>
-                    <label className="flex items-center gap-3 text-sm font-medium text-[#24292f]">
+                    <label className="flex items-center gap-3 text-sm font-medium text-[#f3f5f4]">
                       <input
                         type="checkbox"
                         checked={skipDocker}
                         onChange={(event) => setSkipDocker(event.target.checked)}
-                        className="h-4 w-4 rounded border-[#d0d7de] text-[#0969da] focus:ring-[#0969da]"
+                        className="h-4 w-4 rounded border-[#252b28] text-[#74c69a] focus:ring-[#74c69a]"
                       />
                       Skip Docker
                     </label>
@@ -405,38 +413,38 @@ function StatusPanel({ analysis, report }: { analysis: AnalysisRecord | null; re
         : "Ready to analyze";
 
   return (
-    <aside className="panel p-6">
+    <aside className="panel status-panel p-6 lg:sticky lg:top-6 lg:self-start">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="section-title">Current step</p>
-          <h2 className="mt-2 text-2xl font-semibold text-[#24292f]">{title}</h2>
+          <h2 className="mt-2 text-2xl font-semibold text-[#f3f5f4]">{title}</h2>
         </div>
         {analysis && !isTerminal ? (
-          <Loader2 className="mt-1 h-6 w-6 animate-spin text-[#0969da]" aria-hidden="true" />
+          <Loader2 className="mt-1 h-6 w-6 animate-spin text-[#74c69a]" aria-hidden="true" />
         ) : (
-          <CircleDashed className="mt-1 h-6 w-6 text-[#8c959f]" aria-hidden="true" />
+          <CircleDashed className="mt-1 h-6 w-6 text-[#737d77]" aria-hidden="true" />
         )}
       </div>
 
-      <div className="mt-6 space-y-3">
+      <div className="status-track mt-6 space-y-3">
         {STATUS_STEPS.slice(0, -1).map((step, index) => {
           const active = index === currentIndex && !isTerminal;
           const complete = report || index < currentIndex || currentStatus === "completed";
           return (
-            <div key={step.status} className="flex items-center gap-3">
+            <div key={step.status} className="status-step flex items-center gap-3">
               <span
                 className={[
                   "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
                   active
-                    ? "border-[#0969da] bg-[#ddf4ff] text-[#0969da]"
+                    ? "border-[#74c69a] bg-[#15241c] text-[#74c69a]"
                     : complete
                       ? "border-[#1a7f37] bg-[#1a7f37] text-white"
-                      : "border-[#d0d7de] bg-white text-[#8c959f]",
+                      : "border-[#252b28] bg-[#111411] text-[#737d77]",
                 ].join(" ")}
               >
                 {complete ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : index + 1}
               </span>
-              <span className={active ? "font-medium text-[#24292f]" : "text-sm text-[#57606a]"}>
+              <span className={active ? "font-medium text-[#f3f5f4]" : "text-sm text-[#9ca6a0]"}>
                 {step.label}
               </span>
             </div>
@@ -445,11 +453,11 @@ function StatusPanel({ analysis, report }: { analysis: AnalysisRecord | null; re
       </div>
 
       {analysis ? (
-        <div className="mt-6 rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4 text-sm text-[#57606a]">
-          <p className="font-medium text-[#24292f]">Analysis ID</p>
+        <div className="mt-6 rounded-md border border-[#252b28] bg-[#0b0d0c] p-4 text-sm text-[#9ca6a0]">
+          <p className="font-medium text-[#f3f5f4]">Analysis ID</p>
           <p className="mt-1 break-all font-mono text-xs">{analysis.analysis_id}</p>
           {report ? (
-            <a className="mt-3 inline-block font-semibold text-[#0969da] hover:text-[#0757b3]" href="#patchguard-report">
+            <a className="mt-3 inline-block font-semibold text-[#74c69a] hover:text-[#91d7b0]" href="#patchguard-report">
               View report
             </a>
           ) : null}
@@ -479,7 +487,16 @@ function ReportView({
   const logRuns = collectLogRuns(report);
 
   return (
-    <section id="patchguard-report" ref={reportRef} className="mt-8 scroll-mt-6 space-y-6">
+    <section id="patchguard-report" ref={reportRef} className="report-stack mt-8 scroll-mt-6 space-y-5">
+      <div className="report-intro">
+        <p className="text-sm font-medium text-[#74c69a]">Collected evidence</p>
+        <h2 className="mt-3 text-4xl font-semibold text-[#f3f5f4] sm:text-5xl">The Evidence Archive.</h2>
+        <p className="mt-4 max-w-xl text-base leading-7 text-[#9ca6a0]">
+          Every recommendation stays attached to the tests, scans, and changed-code evidence that
+          produced it.
+        </p>
+      </div>
+
       {report.status !== "complete" || report.errors.length > 0 ? (
         <Notice tone="warning" title="Partial evidence">
           {report.errors.length > 0
@@ -488,7 +505,7 @@ function ReportView({
         </Notice>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[320px_320px_minmax(0,1fr)]">
+      <div className="report-overview grid gap-5 xl:grid-cols-[300px_300px_minmax(0,1fr)]">
         <RiskCard report={report} />
         <PolicyCard report={report} />
         <PRMetadataCard report={report} analysis={analysis} />
@@ -497,7 +514,7 @@ function ReportView({
       <AIReviewCard report={report} />
       <BehavioralContractCard report={report} />
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid gap-5 xl:grid-cols-2">
         <RunCard
           title="Existing Tests"
           icon={<TestTube2 className="h-5 w-5" aria-hidden="true" />}
@@ -575,9 +592,9 @@ function RiskCard({ report }: { report: RiskReport }) {
       </div>
       <div className="mt-5 flex items-end gap-3">
         <span className={`text-6xl font-semibold ${tone.text}`}>{report.risk_score}</span>
-        <span className="pb-2 text-lg font-medium text-[#57606a]">/100</span>
+        <span className="pb-2 text-lg font-medium text-[#9ca6a0]">/100</span>
       </div>
-      <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-[#eaeef2]">
+      <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-[#202522]">
         <div
           className={`h-full rounded-full ${tone.bar}`}
           style={{ width: `${Math.min(100, Math.max(0, report.risk_score))}%` }}
@@ -587,11 +604,11 @@ function RiskCard({ report }: { report: RiskReport }) {
         <div className="mt-5 space-y-3">
           {dimensions.map(([label, value]) => (
             <div key={label}>
-              <div className="flex items-center justify-between text-xs font-medium text-[#57606a]">
+              <div className="flex items-center justify-between text-xs font-medium text-[#9ca6a0]">
                 <span>{label}</span>
                 <span>{value}</span>
               </div>
-              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#eaeef2]">
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#202522]">
                 <div
                   className="h-full rounded-full bg-[#6e7781]"
                   style={{ width: `${Math.min(100, Math.max(0, Number(value)))}%` }}
@@ -601,13 +618,13 @@ function RiskCard({ report }: { report: RiskReport }) {
           ))}
         </div>
       )}
-      <div className="mt-6 border-t border-[#d0d7de] pt-5">
+      <div className="mt-6 border-t border-[#252b28] pt-5">
         <p className="metric-label">Recommendation</p>
-        <p className="mt-2 text-base font-semibold leading-6 text-[#24292f]">
+        <p className="mt-2 text-base font-semibold leading-6 text-[#f3f5f4]">
           {report.recommendation}
         </p>
-        <p className="mt-2 text-sm text-[#57606a]">
-          Decision: <span className="font-medium text-[#24292f]">{report.merge_decision}</span>
+        <p className="mt-2 text-sm text-[#9ca6a0]">
+          Decision: <span className="font-medium text-[#f3f5f4]">{report.merge_decision}</span>
         </p>
       </div>
     </article>
@@ -633,23 +650,23 @@ function PolicyCard({ report }: { report: RiskReport }) {
           {tone.symbol}
         </span>
         <div>
-          <p className="text-base font-semibold text-[#24292f]">{tone.title}</p>
-          <p className="mt-1 text-sm text-[#57606a]">
+          <p className="text-base font-semibold text-[#f3f5f4]">{tone.title}</p>
+          <p className="mt-1 text-sm text-[#9ca6a0]">
             {rules.length} triggered rule{rules.length === 1 ? "" : "s"}
           </p>
         </div>
       </div>
-      <ul className="mt-5 space-y-2 text-sm text-[#57606a]">
+      <ul className="mt-5 space-y-2 text-sm text-[#9ca6a0]">
         {reasons.slice(0, 3).map((reason) => (
-          <li key={reason} className="rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-3">
+          <li key={reason} className="rounded-md border border-[#252b28] bg-[#0b0d0c] p-3">
             {reason}
           </li>
         ))}
       </ul>
       {policy?.config_path ? (
-        <p className="mt-4 break-all text-xs text-[#57606a]">Config: {policy.config_path}</p>
+        <p className="mt-4 break-all text-xs text-[#9ca6a0]">Config: {policy.config_path}</p>
       ) : (
-        <p className="mt-4 text-xs text-[#57606a]">Using default policy.</p>
+        <p className="mt-4 text-xs text-[#9ca6a0]">Using default policy.</p>
       )}
     </article>
   );
@@ -673,7 +690,7 @@ function PRMetadataCard({ report, analysis }: { report: RiskReport; analysis: An
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="section-title">Pull request</p>
-          <h2 className="mt-2 text-2xl font-semibold text-[#24292f]">{pr.title ?? "Untitled PR"}</h2>
+          <h2 className="mt-2 text-2xl font-semibold text-[#f3f5f4]">{pr.title ?? "Untitled PR"}</h2>
         </div>
         <StatusBadge status={report.status === "complete" ? "passed" : "error"} label={report.status} />
       </div>
@@ -681,16 +698,16 @@ function PRMetadataCard({ report, analysis }: { report: RiskReport; analysis: An
         {metadata.map(([label, value]) => (
           <div key={label}>
             <dt className="metric-label">{label}</dt>
-            <dd className="mt-1 break-words text-sm font-medium text-[#24292f]">{value}</dd>
+            <dd className="mt-1 break-words text-sm font-medium text-[#f3f5f4]">{value}</dd>
           </div>
         ))}
       </dl>
-      <div className="mt-6 rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4 text-sm text-[#57606a]">
-        <p className="font-medium text-[#24292f]">Source</p>
-        <a className="mt-1 block break-all text-[#0969da] hover:text-[#0757b3]" href={pr.url}>
+      <div className="mt-6 rounded-md border border-[#252b28] bg-[#0b0d0c] p-4 text-sm text-[#9ca6a0]">
+        <p className="font-medium text-[#f3f5f4]">Source</p>
+        <a className="mt-1 block break-all text-[#74c69a] hover:text-[#91d7b0]" href={pr.url}>
           {pr.url}
         </a>
-        {analysis ? <p className="mt-2 text-xs text-[#57606a]">Updated {formatDate(analysis.updated_at)}</p> : null}
+        {analysis ? <p className="mt-2 text-xs text-[#9ca6a0]">Updated {formatDate(analysis.updated_at)}</p> : null}
       </div>
     </article>
   );
@@ -709,28 +726,28 @@ function BehavioralContractCard({ report }: { report: RiskReport }) {
 
   return (
     <article className="panel overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#d0d7de] px-6 py-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#252b28] px-6 py-5">
         <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#ddf4ff] text-[#0969da]">
+          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#15241c] text-[#74c69a]">
             <ListChecks className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
             <p className="section-title">Behavioral contract</p>
-            <p className="mt-1 text-sm text-[#57606a]">
+            <p className="mt-1 text-sm text-[#9ca6a0]">
               {itemCount} contract item{itemCount === 1 ? "" : "s"} extracted for test targeting
             </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm font-medium text-[#57606a]">Confidence {confidence}%</span>
+          <span className="text-sm font-medium text-[#9ca6a0]">Confidence {confidence}%</span>
           {run ? <StatusBadge status={run.status} /> : <StatusBadge status="skipped" />}
         </div>
       </div>
       <div className="px-6 py-5">
-        {run ? <p className="mb-5 text-sm text-[#57606a]">{run.summary}</p> : null}
-        <div className="mb-5 h-2 overflow-hidden rounded-full bg-[#eaeef2]">
+        {run ? <p className="mb-5 text-sm text-[#9ca6a0]">{run.summary}</p> : null}
+        <div className="mb-5 h-2 overflow-hidden rounded-full bg-[#202522]">
           <div
-            className="h-full rounded-full bg-[#0969da]"
+            className="h-full rounded-full bg-[#74c69a]"
             style={{ width: `${Math.min(100, Math.max(0, confidence))}%` }}
           />
         </div>
@@ -757,9 +774,9 @@ function BehavioralContractCard({ report }: { report: RiskReport }) {
           />
         </div>
         {contract.contract_uncertainties.length > 0 ? (
-          <div className="mt-4 rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4">
-            <p className="text-sm font-semibold text-[#24292f]">Uncertainties</p>
-            <ul className="mt-3 space-y-2 text-sm text-[#57606a]">
+          <div className="mt-4 rounded-md border border-[#252b28] bg-[#0b0d0c] p-4">
+            <p className="text-sm font-semibold text-[#f3f5f4]">Uncertainties</p>
+            <ul className="mt-3 space-y-2 text-sm text-[#9ca6a0]">
               {contract.contract_uncertainties.map((item) => (
                 <li key={item}>{item}</li>
               ))}
@@ -778,14 +795,14 @@ function AIReviewCard({ report }: { report: RiskReport }) {
 
   return (
     <article className="panel overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#d0d7de] px-6 py-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#252b28] px-6 py-5">
         <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f6f8fa] text-[#57606a]">
+          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#0b0d0c] text-[#9ca6a0]">
             <ClipboardList className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
             <p className="section-title">Evidence-based AI review</p>
-            <p className="mt-1 text-sm text-[#57606a]">
+            <p className="mt-1 text-sm text-[#9ca6a0]">
               Summary and next actions grounded in collected PatchGuard evidence
             </p>
           </div>
@@ -794,15 +811,15 @@ function AIReviewCard({ report }: { report: RiskReport }) {
       </div>
 
       <div className="space-y-5 px-6 py-5">
-        {run ? <p className="text-sm text-[#57606a]">{run.summary}</p> : null}
+        {run ? <p className="text-sm text-[#9ca6a0]">{run.summary}</p> : null}
         {review ? (
           <>
-            <div className="rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4">
-              <p className="text-sm font-semibold text-[#24292f]">Summary</p>
-              <p className="mt-2 text-sm leading-6 text-[#57606a]">
+            <div className="rounded-md border border-[#252b28] bg-[#0b0d0c] p-4">
+              <p className="text-sm font-semibold text-[#f3f5f4]">Summary</p>
+              <p className="mt-2 text-sm leading-6 text-[#9ca6a0]">
                 {review.executive_summary || "No AI review summary was generated."}
               </p>
-              <p className="mt-3 text-xs font-medium text-[#57606a]">
+              <p className="mt-3 text-xs font-medium text-[#9ca6a0]">
                 AI recommendation: {review.merge_recommendation.replace(/_/g, " ")}
               </p>
             </div>
@@ -826,20 +843,20 @@ function AIReviewCard({ report }: { report: RiskReport }) {
             </div>
 
             {topRisks.length > 0 ? (
-              <div className="overflow-hidden rounded-md border border-[#d0d7de]">
-                <div className="border-b border-[#d0d7de] bg-[#f6f8fa] px-4 py-3">
-                  <p className="text-sm font-semibold text-[#24292f]">Top AI-highlighted risks</p>
+              <div className="overflow-hidden rounded-md border border-[#252b28]">
+                <div className="border-b border-[#252b28] bg-[#0b0d0c] px-4 py-3">
+                  <p className="text-sm font-semibold text-[#f3f5f4]">Top AI-highlighted risks</p>
                 </div>
-                <div className="divide-y divide-[#d8dee4]">
+                <div className="divide-y divide-[#202522]">
                   {topRisks.map((risk) => (
                     <div key={`${risk.title}-${risk.severity}`} className="grid gap-3 p-4 lg:grid-cols-[160px_minmax(0,1fr)_minmax(220px,0.6fr)]">
                       <div>
                         <SeverityBadge severity={risk.severity} />
-                        <p className="mt-2 text-sm font-semibold text-[#24292f]">{risk.title}</p>
+                        <p className="mt-2 text-sm font-semibold text-[#f3f5f4]">{risk.title}</p>
                       </div>
                       <div>
                         <p className="metric-label">Evidence</p>
-                        <ul className="mt-2 space-y-1 text-sm leading-6 text-[#57606a]">
+                        <ul className="mt-2 space-y-1 text-sm leading-6 text-[#9ca6a0]">
                           {risk.evidence.map((item) => (
                             <li key={item}>{item}</li>
                           ))}
@@ -847,7 +864,7 @@ function AIReviewCard({ report }: { report: RiskReport }) {
                       </div>
                       <div>
                         <p className="metric-label">Suggested fix</p>
-                        <p className="mt-2 text-sm leading-6 text-[#57606a]">
+                        <p className="mt-2 text-sm leading-6 text-[#9ca6a0]">
                           {risk.suggested_fix || "Review the cited evidence before merge."}
                         </p>
                       </div>
@@ -893,12 +910,12 @@ function ReviewList({
   emptyText: string;
 }) {
   return (
-    <div className="rounded-md border border-[#d0d7de] p-4">
-      <p className="text-sm font-semibold text-[#24292f]">{title}</p>
+    <div className="rounded-md border border-[#252b28] p-4">
+      <p className="text-sm font-semibold text-[#f3f5f4]">{title}</p>
       {values.length === 0 ? (
-        <p className="mt-3 text-sm leading-6 text-[#57606a]">{emptyText}</p>
+        <p className="mt-3 text-sm leading-6 text-[#9ca6a0]">{emptyText}</p>
       ) : (
-        <ul className="mt-3 space-y-2 text-sm leading-6 text-[#57606a]">
+        <ul className="mt-3 space-y-2 text-sm leading-6 text-[#9ca6a0]">
           {values.map((value) => (
             <li key={value}>{value}</li>
           ))}
@@ -918,12 +935,12 @@ function ContractList({
   emptyText: string;
 }) {
   return (
-    <div className="rounded-md border border-[#d0d7de] p-4">
-      <p className="text-sm font-semibold text-[#24292f]">{title}</p>
+    <div className="rounded-md border border-[#252b28] p-4">
+      <p className="text-sm font-semibold text-[#f3f5f4]">{title}</p>
       {values.length === 0 ? (
-        <p className="mt-3 text-sm text-[#57606a]">{emptyText}</p>
+        <p className="mt-3 text-sm text-[#9ca6a0]">{emptyText}</p>
       ) : (
-        <ul className="mt-3 space-y-2 text-sm leading-6 text-[#57606a]">
+        <ul className="mt-3 space-y-2 text-sm leading-6 text-[#9ca6a0]">
           {values.map((value) => (
             <li key={value}>{value}</li>
           ))}
@@ -950,34 +967,34 @@ function RunCard({
     <article className="panel p-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f6f8fa] text-[#57606a]">
+          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#0b0d0c] text-[#9ca6a0]">
             {icon}
           </span>
           <div>
             <p className="section-title">{title}</p>
-            {extra ? <p className="mt-1 text-sm text-[#57606a]">{extra}</p> : null}
+            {extra ? <p className="mt-1 text-sm text-[#9ca6a0]">{extra}</p> : null}
           </div>
         </div>
         {run ? <StatusBadge status={run.status} /> : <StatusBadge status="skipped" />}
       </div>
       {run ? (
         <div className="mt-5">
-          <p className="text-base font-semibold text-[#24292f]">{run.summary}</p>
+          <p className="text-base font-semibold text-[#f3f5f4]">{run.summary}</p>
           {run.command ? (
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
               <div>
                 <dt className="metric-label">Exit code</dt>
-                <dd className="mt-1 text-[#24292f]">{run.command.exit_code ?? "n/a"}</dd>
+                <dd className="mt-1 text-[#f3f5f4]">{run.command.exit_code ?? "n/a"}</dd>
               </div>
               <div>
                 <dt className="metric-label">Duration</dt>
-                <dd className="mt-1 text-[#24292f]">
+                <dd className="mt-1 text-[#f3f5f4]">
                   {(run.command.duration_seconds ?? 0).toFixed(1)}s
                 </dd>
               </div>
               <div>
                 <dt className="metric-label">Timed out</dt>
-                <dd className="mt-1 text-[#24292f]">{run.command.timed_out ? "Yes" : "No"}</dd>
+                <dd className="mt-1 text-[#f3f5f4]">{run.command.timed_out ? "Yes" : "No"}</dd>
               </div>
             </dl>
           ) : null}
@@ -992,16 +1009,16 @@ function RunCard({
 function FailureMappings({ mappings }: { mappings: FailureMapping[] }) {
   return (
     <article className="panel overflow-hidden">
-      <div className="border-b border-[#d0d7de] px-6 py-5">
+      <div className="border-b border-[#252b28] px-6 py-5">
         <p className="section-title">Failed generated tests</p>
-        <h2 className="mt-1 text-xl font-semibold text-[#24292f]">
+        <h2 className="mt-1 text-xl font-semibold text-[#f3f5f4]">
           {mappings.length} mapped failure{mappings.length === 1 ? "" : "s"}
         </h2>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-[#d0d7de] text-sm">
-          <thead className="bg-[#f6f8fa]">
-            <tr className="text-left text-xs font-semibold uppercase text-[#57606a]">
+        <table className="min-w-full divide-y divide-[#252b28] text-sm">
+          <thead className="bg-[#0b0d0c]">
+            <tr className="text-left text-xs font-semibold uppercase text-[#9ca6a0]">
               <th className="px-6 py-3">Failed test</th>
               <th className="px-4 py-3">Target</th>
               <th className="px-4 py-3">Behavior checked</th>
@@ -1009,24 +1026,24 @@ function FailureMappings({ mappings }: { mappings: FailureMapping[] }) {
               <th className="px-4 py-3">Next step</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#d8dee4] bg-white">
+          <tbody className="divide-y divide-[#202522] bg-[#111411]">
             {mappings.map((mapping) => (
               <tr key={`${mapping.failed_test}-${mapping.target_file ?? "unknown"}`}>
                 <td className="max-w-[260px] break-words px-6 py-4 font-mono text-xs text-[#cf222e]">
                   {mapping.failed_test}
                 </td>
-                <td className="max-w-[300px] break-words px-4 py-4 font-mono text-xs text-[#24292f]">
+                <td className="max-w-[300px] break-words px-4 py-4 font-mono text-xs text-[#f3f5f4]">
                   {mapping.target_file ?? "unknown"}
                   {mapping.target_function ? `::${mapping.target_function}` : ""}
                 </td>
-                <td className="max-w-[360px] break-words px-4 py-4 text-[#57606a]">
+                <td className="max-w-[360px] break-words px-4 py-4 text-[#9ca6a0]">
                   {mapping.behavior_checked ?? "No behavior metadata"}
                 </td>
-                <td className="max-w-[320px] break-words px-4 py-4 text-[#57606a]">
+                <td className="max-w-[320px] break-words px-4 py-4 text-[#9ca6a0]">
                   <p>{mapping.failure_summary}</p>
-                  <p className="mt-2 text-xs text-[#8c959f]">{mapping.risk_message}</p>
+                  <p className="mt-2 text-xs text-[#737d77]">{mapping.risk_message}</p>
                 </td>
-                <td className="max-w-[360px] break-words px-4 py-4 text-[#57606a]">
+                <td className="max-w-[360px] break-words px-4 py-4 text-[#9ca6a0]">
                   {mapping.suggested_next_step ?? "Review the generated test failure before merging."}
                 </td>
               </tr>
@@ -1041,10 +1058,10 @@ function FailureMappings({ mappings }: { mappings: FailureMapping[] }) {
 function ChangedFilesTable({ files }: { files: ChangedFile[] }) {
   return (
     <article className="panel overflow-hidden">
-      <div className="flex items-center justify-between gap-4 border-b border-[#d0d7de] px-6 py-5">
+      <div className="flex items-center justify-between gap-4 border-b border-[#252b28] px-6 py-5">
         <div>
           <p className="section-title">Changed files</p>
-          <h2 className="mt-1 text-xl font-semibold text-[#24292f]">{files.length} files</h2>
+          <h2 className="mt-1 text-xl font-semibold text-[#f3f5f4]">{files.length} files</h2>
         </div>
       </div>
       {files.length === 0 ? (
@@ -1053,9 +1070,9 @@ function ChangedFilesTable({ files }: { files: ChangedFile[] }) {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-[#d0d7de] text-sm">
-            <thead className="bg-[#f6f8fa]">
-              <tr className="text-left text-xs font-semibold uppercase text-[#57606a]">
+          <table className="min-w-full divide-y divide-[#252b28] text-sm">
+            <thead className="bg-[#0b0d0c]">
+              <tr className="text-left text-xs font-semibold uppercase text-[#9ca6a0]">
                 <th className="px-6 py-3">File</th>
                 <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3">Status</th>
@@ -1063,18 +1080,18 @@ function ChangedFilesTable({ files }: { files: ChangedFile[] }) {
                 <th className="px-4 py-3 text-right">Deletions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#d8dee4] bg-white">
+            <tbody className="divide-y divide-[#202522] bg-[#111411]">
               {files.map((file) => (
                 <tr key={file.filename}>
-                  <td className="max-w-[520px] break-words px-6 py-4 font-mono text-xs text-[#24292f]">
+                  <td className="max-w-[520px] break-words px-6 py-4 font-mono text-xs text-[#f3f5f4]">
                     {file.filename}
                   </td>
                   <td className="px-4 py-4">
-                    <span className="rounded-full bg-[#f6f8fa] px-2.5 py-1 text-xs font-medium text-[#57606a]">
+                    <span className="rounded-full bg-[#0b0d0c] px-2.5 py-1 text-xs font-medium text-[#9ca6a0]">
                       {file.classification ?? "unknown"}
                     </span>
                   </td>
-                  <td className="px-4 py-4 text-[#57606a]">{file.status}</td>
+                  <td className="px-4 py-4 text-[#9ca6a0]">{file.status}</td>
                   <td className="px-4 py-4 text-right font-medium text-[#1a7f37]">
                     +{file.additions ?? 0}
                   </td>
@@ -1100,14 +1117,14 @@ function RiskReasons({ reasons }: { reasons: RiskReport["risk_reasons"] }) {
       ) : (
         <div className="mt-5 grid gap-3 md:grid-cols-2">
           {reasons.map((reason) => (
-            <div key={`${reason.category}-${reason.reason}`} className="rounded-md border border-[#d0d7de] p-4">
+            <div key={`${reason.category}-${reason.reason}`} className="rounded-md border border-[#252b28] p-4">
               <div className="flex items-start justify-between gap-4">
-                <p className="text-sm font-semibold text-[#24292f]">{reason.category}</p>
+                <p className="text-sm font-semibold text-[#f3f5f4]">{reason.category}</p>
                 <span className="shrink-0 rounded-full bg-[#fff8c5] px-2.5 py-1 text-xs font-semibold text-[#9a6700]">
                   +{reason.score_impact}
                 </span>
               </div>
-              <p className="mt-2 text-sm leading-6 text-[#57606a]">{reason.reason}</p>
+              <p className="mt-2 text-sm leading-6 text-[#9ca6a0]">{reason.reason}</p>
             </div>
           ))}
         </div>
@@ -1119,14 +1136,14 @@ function RiskReasons({ reasons }: { reasons: RiskReport["risk_reasons"] }) {
 function SecurityFindings({ findings }: { findings: SecurityFinding[] }) {
   return (
     <article className="panel overflow-hidden">
-      <div className="flex items-center justify-between gap-4 border-b border-[#d0d7de] px-6 py-5">
+      <div className="flex items-center justify-between gap-4 border-b border-[#252b28] px-6 py-5">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#ffebe9] text-[#cf222e]">
             <ShieldAlert className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
             <p className="section-title">Security findings</p>
-            <p className="mt-1 text-sm text-[#57606a]">{findings.length} Bandit finding{findings.length === 1 ? "" : "s"}</p>
+            <p className="mt-1 text-sm text-[#9ca6a0]">{findings.length} Bandit finding{findings.length === 1 ? "" : "s"}</p>
           </div>
         </div>
       </div>
@@ -1136,27 +1153,27 @@ function SecurityFindings({ findings }: { findings: SecurityFinding[] }) {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-[#d0d7de] text-sm">
-            <thead className="bg-[#f6f8fa]">
-              <tr className="text-left text-xs font-semibold uppercase text-[#57606a]">
+          <table className="min-w-full divide-y divide-[#252b28] text-sm">
+            <thead className="bg-[#0b0d0c]">
+              <tr className="text-left text-xs font-semibold uppercase text-[#9ca6a0]">
                 <th className="px-6 py-3">Severity</th>
                 <th className="px-4 py-3">Confidence</th>
                 <th className="px-4 py-3">Location</th>
                 <th className="px-4 py-3">Message</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#d8dee4] bg-white">
+            <tbody className="divide-y divide-[#202522] bg-[#111411]">
               {findings.map((finding, index) => (
                 <tr key={`${finding.filename ?? finding.file}-${finding.line_number ?? finding.line}-${index}`}>
                   <td className="px-6 py-4">
                     <SeverityBadge severity={finding.severity} />
                   </td>
-                  <td className="px-4 py-4 text-[#57606a]">{finding.confidence ?? "n/a"}</td>
-                  <td className="max-w-[340px] break-words px-4 py-4 font-mono text-xs text-[#24292f]">
+                  <td className="px-4 py-4 text-[#9ca6a0]">{finding.confidence ?? "n/a"}</td>
+                  <td className="max-w-[340px] break-words px-4 py-4 font-mono text-xs text-[#f3f5f4]">
                     {finding.filename ?? finding.file ?? "unknown"}:
                     {finding.line_number ?? finding.line ?? "?"}
                   </td>
-                  <td className="px-4 py-4 text-[#57606a]">
+                  <td className="px-4 py-4 text-[#9ca6a0]">
                     {finding.message || finding.issue_text || "No message"}
                   </td>
                 </tr>
@@ -1187,23 +1204,23 @@ function CollapsibleSection({
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition hover:bg-[#f6f8fa]"
+        className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition hover:bg-[#0b0d0c]"
       >
         <span className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#ddf4ff] text-[#0969da]">
+          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#15241c] text-[#74c69a]">
             {icon}
           </span>
           <span>
             <span className="section-title">{title}</span>
-            <span className="mt-1 block text-sm text-[#57606a]">{count} item{count === 1 ? "" : "s"}</span>
+            <span className="mt-1 block text-sm text-[#9ca6a0]">{count} item{count === 1 ? "" : "s"}</span>
           </span>
         </span>
         <ChevronDown
-          className={`h-5 w-5 text-[#57606a] transition ${open ? "rotate-180" : ""}`}
+          className={`h-5 w-5 text-[#9ca6a0] transition ${open ? "rotate-180" : ""}`}
           aria-hidden="true"
         />
       </button>
-      {open ? <div className="border-t border-[#d0d7de] px-6 py-5">{children}</div> : null}
+      {open ? <div className="border-t border-[#252b28] px-6 py-5">{children}</div> : null}
     </section>
   );
 }
@@ -1212,14 +1229,14 @@ function GeneratedTestBlock({ test }: { test: GeneratedTest }) {
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-        <span className="font-mono text-xs font-semibold text-[#24292f]">{test.path}</span>
+        <span className="font-mono text-xs font-semibold text-[#f3f5f4]">{test.path}</span>
         {test.target_functions?.map((target) => (
-          <span key={target} className="rounded-full bg-[#f6f8fa] px-2.5 py-1 text-xs text-[#57606a]">
+          <span key={target} className="rounded-full bg-[#0b0d0c] px-2.5 py-1 text-xs text-[#9ca6a0]">
             {target}
           </span>
         ))}
       </div>
-      <pre className="max-h-[520px] overflow-auto rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4 text-xs leading-6 text-[#24292f]">
+      <pre className="max-h-[520px] overflow-auto rounded-md border border-[#252b28] bg-[#0b0d0c] p-4 text-xs leading-6 text-[#f3f5f4]">
         <code>{test.code}</code>
       </pre>
     </div>
@@ -1228,19 +1245,19 @@ function GeneratedTestBlock({ test }: { test: GeneratedTest }) {
 
 function LogRunBlock({ run }: { run: ToolRun }) {
   return (
-    <div className="rounded-md border border-[#d0d7de]">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d0d7de] bg-[#f6f8fa] px-4 py-3">
+    <div className="rounded-md border border-[#252b28]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#252b28] bg-[#0b0d0c] px-4 py-3">
         <div>
-          <p className="text-sm font-semibold text-[#24292f]">{run.name}</p>
-          <p className="text-xs text-[#57606a]">{run.kind}</p>
+          <p className="text-sm font-semibold text-[#f3f5f4]">{run.name}</p>
+          <p className="text-xs text-[#9ca6a0]">{run.kind}</p>
         </div>
         <StatusBadge status={run.status} />
       </div>
       <div className="space-y-4 p-4">
-        <p className="text-sm text-[#57606a]">{run.summary}</p>
+        <p className="text-sm text-[#9ca6a0]">{run.summary}</p>
         {run.command ? (
           <>
-            <pre className="rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-3 text-xs text-[#24292f]">
+            <pre className="rounded-md border border-[#252b28] bg-[#0b0d0c] p-3 text-xs text-[#f3f5f4]">
               <code>{run.command.command.join(" ")}</code>
             </pre>
             {run.command.stdout_tail ? (
@@ -1260,7 +1277,7 @@ function LogOutput({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="metric-label">{label}</p>
-      <pre className="mt-2 max-h-[360px] overflow-auto rounded-md border border-[#d0d7de] bg-[#f6f8fa] p-4 text-xs leading-6 text-[#24292f]">
+      <pre className="mt-2 max-h-[360px] overflow-auto rounded-md border border-[#252b28] bg-[#0b0d0c] p-4 text-xs leading-6 text-[#f3f5f4]">
         <code>{value}</code>
       </pre>
     </div>
@@ -1295,7 +1312,7 @@ function Notice({
 
 function EmptyState({ children }: { children: ReactNode }) {
   return (
-    <div className="mt-5 rounded-md border border-dashed border-[#d0d7de] bg-[#f6f8fa] p-5 text-sm text-[#57606a]">
+    <div className="mt-5 rounded-md border border-dashed border-[#252b28] bg-[#0b0d0c] p-5 text-sm text-[#9ca6a0]">
       {children}
     </div>
   );
@@ -1305,7 +1322,7 @@ function StatusBadge({ status, label }: { status: RunStatus; label?: string }) {
   const styles: Record<RunStatus, string> = {
     passed: "bg-[#dafbe1] text-[#116329]",
     failed: "bg-[#ffebe9] text-[#cf222e]",
-    skipped: "bg-[#f6f8fa] text-[#57606a]",
+    skipped: "bg-[#0b0d0c] text-[#9ca6a0]",
     error: "bg-[#fff8c5] text-[#9a6700]",
   };
   const Icon = status === "passed" ? CheckCircle2 : status === "failed" ? XCircle : AlertTriangle;
@@ -1327,7 +1344,7 @@ function SeverityBadge({ severity }: { severity: string }) {
       ? "bg-[#ffebe9] text-[#cf222e]"
       : normalized === "medium"
         ? "bg-[#fff8c5] text-[#9a6700]"
-        : "bg-[#f6f8fa] text-[#57606a]";
+        : "bg-[#0b0d0c] text-[#9ca6a0]";
   return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${style}`}>{severity}</span>;
 }
 

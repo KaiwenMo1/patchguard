@@ -3,42 +3,423 @@
 @tailwind utilities;
 
 :root {
-  color: #24292f;
-  background: #f6f8fa;
+  color: #f3f5f4;
+  background: #080a09;
   font-family:
-    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    Aptos, "Segoe UI Variable", "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+html {
+  scroll-behavior: smooth;
+  background: #080a09;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: #080a09;
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
+}
+
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:active {
+  transform: translateY(1px);
 }
 
 pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+::selection {
+  color: #08120c;
+  background: #8ed3aa;
+}
+
+.app-frame {
+  overflow-x: hidden;
+  background:
+    linear-gradient(180deg, #080a09 0%, #0a0d0b 48%, #070908 100%);
+}
+
+.app-header {
+  position: relative;
+  z-index: 40;
+  background: #080a09;
+}
+
+.brand-mark {
+  color: #09100c !important;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #f3f5f4 !important;
+}
+
+.header-link {
+  border: 1px solid #303632;
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  transition:
+    color 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease;
+}
+
+.header-link:hover {
+  color: #0a0d0b;
+  border-color: #f3f5f4;
+  background: #f3f5f4;
+}
+
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 80;
+  transform: translateY(-180%);
+  border-radius: 999px;
+  background: #f3f5f4;
+  padding: 0.65rem 0.9rem;
+  color: #0a0d0b;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.analysis-grid {
+  position: relative;
+}
+
+.analysis-panel {
+  position: relative;
+  min-height: min(820px, calc(100dvh - 82px));
+  border: 0 !important;
+  background:
+    linear-gradient(90deg, #080a09 0%, rgba(8, 10, 9, 0.98) 43%, rgba(8, 10, 9, 0.48) 69%, rgba(8, 10, 9, 0.04) 100%),
+    url("/assets/patchguard-evidence-architecture.png") right center / auto 100% no-repeat;
+  box-shadow: none !important;
+}
+
+.analysis-panel::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 12rem;
+  background: linear-gradient(180deg, transparent, #080a09);
+  content: "";
+  pointer-events: none;
+}
+
+.analysis-intro {
+  position: relative;
+  z-index: 2;
+  border: 0 !important;
+  background: transparent;
+}
+
+.analysis-intro h1 {
+  letter-spacing: -0.045em;
+}
+
+.analysis-intro h1 span {
+  padding-bottom: 0.12em;
+  letter-spacing: -0.05em;
+}
+
+.signal-label {
+  text-transform: uppercase;
+}
+
+.signal-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: #74c69a;
+  box-shadow: 0 0 0 4px rgba(116, 198, 154, 0.1);
+  animation: signal-pulse 2.5s ease-in-out infinite;
+}
+
+.analysis-form {
+  position: relative;
+  z-index: 3;
+  background: transparent;
+}
+
+.analysis-form > div,
+.analysis-form > p,
+.analysis-form > label {
+  max-width: 620px;
+}
+
+.control-input {
+  color: #f3f5f4 !important;
+  border-color: #303632 !important;
+  background: rgba(12, 15, 13, 0.82) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(16px);
+}
+
+.control-input:hover {
+  border-color: #657069 !important;
+}
+
+.control-input:focus {
+  border-color: #8ed3aa !important;
+  box-shadow: 0 0 0 3px rgba(116, 198, 154, 0.12);
+}
+
+.control-input option {
+  color: #f3f5f4;
+  background: #111411;
+}
+
+.primary-action {
+  color: #090c0a !important;
+  border-radius: 999px !important;
+  background: #f3f5f4 !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+}
+
+.primary-action:hover {
+  background: #cfe8da !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+}
+
+.status-panel {
+  position: relative;
+  z-index: 4;
+  margin-top: 5rem;
+  border-color: #202522 !important;
+  background: rgba(13, 16, 14, 0.72) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(18px);
+}
+
+.status-track {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.status-track::before {
+  display: none;
+}
+
+.status-step {
+  position: relative;
+  min-width: 0;
+}
+
+.report-stack {
+  margin-top: 10rem !important;
+}
+
+.report-intro {
+  margin-bottom: 5rem;
+}
+
+.report-intro h2 {
+  letter-spacing: -0.04em;
+}
+
+.report-stack > * {
+  animation: report-reveal 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.report-stack > *:nth-child(2) {
+  animation-delay: 50ms;
+}
+
+.report-stack > *:nth-child(3) {
+  animation-delay: 100ms;
+}
+
+.report-stack > *:nth-child(4) {
+  animation-delay: 150ms;
+}
+
+.report-overview {
+  gap: 1.5rem;
+  margin-bottom: 7rem;
+}
+
+.report-overview .panel:first-child {
+  transform: translateY(2rem);
+}
+
+.report-overview .panel:nth-child(3) {
+  transform: translateY(4rem);
+}
+
+.panel {
+  color: #f3f5f4;
+}
+
+.panel tbody tr {
+  transition: background-color 160ms ease;
+}
+
+.panel tbody tr:hover {
+  background: #151a17;
+}
+
+.panel pre {
+  border-color: #2b322e !important;
+  background: #080b09 !important;
+  color: #d9e5de !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.panel pre code {
+  color: inherit;
+}
+
+.panel button,
+.panel a {
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 140ms ease;
+}
+
+.panel button:focus-visible,
+.panel a:focus-visible,
+.header-link:focus-visible {
+  outline: 2px solid #8ed3aa;
+  outline-offset: 3px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #414b45 transparent;
 }
 
 @layer components {
   .panel {
-    @apply rounded-md border border-[#d0d7de] bg-white;
+    @apply rounded-md border border-[#252b28] bg-[#111411];
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.025),
+      0 18px 55px rgba(0, 0, 0, 0.14);
   }
 
   .section-title {
-    @apply text-xs font-semibold text-[#57606a];
+    @apply text-xs font-semibold text-[#9ca6a0];
   }
 
   .metric-label {
-    @apply text-xs font-medium text-[#57606a];
+    @apply text-xs font-medium text-[#9ca6a0];
+  }
+}
+
+@keyframes signal-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 4px rgba(116, 198, 154, 0.1);
+  }
+
+  50% {
+    opacity: 0.68;
+    box-shadow: 0 0 0 8px rgba(116, 198, 154, 0.02);
+  }
+}
+
+@keyframes report-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1023px) {
+  .analysis-panel {
+    min-height: auto;
+    background:
+      linear-gradient(180deg, rgba(8, 10, 9, 0.32), #080a09 68%),
+      url("/assets/patchguard-evidence-architecture.png") top right / auto 62% no-repeat;
+  }
+
+  .analysis-intro {
+    padding-top: 16rem !important;
+  }
+
+  .status-track {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-overview .panel {
+    transform: none !important;
+  }
+}
+
+@media (max-width: 639px) {
+  .analysis-panel {
+    background:
+      linear-gradient(180deg, rgba(8, 10, 9, 0.2), #080a09 52%),
+      url("/assets/patchguard-evidence-architecture.png") top center / auto 44% no-repeat;
+  }
+
+  .analysis-intro {
+    padding-top: 12rem !important;
+  }
+
+  .analysis-intro h1 {
+    font-size: 3.1rem;
+  }
+
+  .status-panel {
+    margin-top: 3rem;
+  }
+
+  .status-track {
+    grid-template-columns: 1fr;
+  }
+
+  .report-stack {
+    margin-top: 6rem !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

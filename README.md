@@ -217,6 +217,8 @@ sensitive_paths:
 - "api/routes/"
 ```
 
+This repository includes [.patchguard.yml](.patchguard.yml) as a starting policy. Copy it into repositories where you want PatchGuard to run, then tune thresholds and blocking rules for that codebase.
+
 The final report includes:
 
 ```json
@@ -453,7 +455,16 @@ jobs:
           skip-llm: "true"
 ```
 
-This runs with no OpenAI cost and uploads a Markdown report artifact.
+This runs with no OpenAI cost. It uploads a Markdown report artifact, writes a GitHub Actions job summary, and emits annotations for policy, test, and security evidence.
+
+To make PatchGuard a real merge gate, fail the workflow when the deterministic recommendation is `do_not_merge`:
+
+```yaml
+      - uses: KaiwenMo1/patchguard@v1
+        with:
+          skip-llm: "true"
+          fail-on-do-not-merge: "true"
+```
 
 To comment on the PR, add `issues: write` and `comment: "true"`:
 
@@ -471,6 +482,34 @@ jobs:
 
       - uses: KaiwenMo1/patchguard@v1
         with:
+          skip-llm: "true"
+          comment: "true"
+```
+
+For on-demand "agent" mode, run PatchGuard when someone comments `/patchguard` on a PR:
+
+```yaml
+name: PatchGuard Command
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+jobs:
+  patchguard:
+    if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, '/patchguard') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: KaiwenMo1/patchguard@v1
+        with:
+          pr-url: ${{ github.event.issue.html_url }}
           skip-llm: "true"
           comment: "true"
 ```
@@ -565,6 +604,8 @@ Supported today:
 - Local FastAPI + React dashboard.
 - Optional GitHub PR comments.
 - Reusable GitHub Action.
+- GitHub Actions annotations and job summaries.
+- On-demand `/patchguard` command workflow.
 - Configurable policy gate.
 - Generated-test failure mappings.
 - Behavioral contract extraction when OpenAI is enabled.
@@ -585,6 +626,7 @@ Known limitations:
 - Mutation testing for generated regression tests.
 - SWE-bench mini evaluation mode.
 - GitHub App installation flow.
+- GitHub Checks API integration with hosted reports.
 - Report history with SQLite-backed API storage.
 
 ## Development

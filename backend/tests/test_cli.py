@@ -17,6 +17,9 @@ def test_analyze_parser_accepts_package_friendly_options() -> None:
             "180",
             "--keep-workspace",
             "--comment",
+            "--github-annotations",
+            "--github-step-summary",
+            "--fail-on-do-not-merge",
         ]
     )
 
@@ -26,3 +29,6 @@ def test_analyze_parser_accepts_package_friendly_options() -> None:
     assert args.timeout == 180
     assert args.keep_workspace is True
     assert args.comment is True
+    assert args.github_annotations is True
+    assert args.github_step_summary is True
+    assert args.fail_on_do_not_merge is True

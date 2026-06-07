@@ -26,6 +26,18 @@ inputs:
     description: Post or update one PatchGuard summary comment on the pull request.
     required: false
     default: "false"
+  annotations:
+    description: Emit GitHub Actions annotations for policy, test, and security evidence.
+    required: false
+    default: "true"
+  step-summary:
+    description: Add a concise PatchGuard summary to the GitHub Actions job summary.
+    required: false
+    default: "true"
+  fail-on-do-not-merge:
+    description: Fail the workflow when PatchGuard recommends do_not_merge.
+    required: false
+    default: "false"
   timeout:
     description: Timeout in seconds for sandbox commands.
     required: false
@@ -61,21 +73,24 @@ runs:
 
     - name: Build PatchGuard sandbox image
       shell: bash
-      run: docker build -t "${{ inputs.docker-image }}" -f "$GITHUB_ACTION_PATH/sandbox/python/Dockerfile" "$GITHUB_ACTION_PATH/sandbox/python"
+      run: docker build -t "${{ inputs['docker-image'] }}" -f "$GITHUB_ACTION_PATH/sandbox/python/Dockerfile" "$GITHUB_ACTION_PATH/sandbox/python"
 
     - name: Run PatchGuard
       shell: bash
       env:
         GITHUB_TOKEN: ${{ github.token }}
         OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
-        INPUT_PR_URL: ${{ inputs.pr-url }}
+        INPUT_PR_URL: ${{ inputs['pr-url'] }}
         INPUT_OUTPUT: ${{ inputs.output }}
         INPUT_FORMAT: ${{ inputs.format }}
-        INPUT_SKIP_LLM: ${{ inputs.skip-llm }}
+        INPUT_SKIP_LLM: ${{ inputs['skip-llm'] }}
         INPUT_COMMENT: ${{ inputs.comment }}
+        INPUT_ANNOTATIONS: ${{ inputs.annotations }}
+        INPUT_STEP_SUMMARY: ${{ inputs['step-summary'] }}
+        INPUT_FAIL_ON_DO_NOT_MERGE: ${{ inputs['fail-on-do-not-merge'] }}
         INPUT_TIMEOUT: ${{ inputs.timeout }}
-        INPUT_DOCKER_IMAGE: ${{ inputs.docker-image }}
-        INPUT_KEEP_WORKSPACE: ${{ inputs.keep-workspace }}
+        INPUT_DOCKER_IMAGE: ${{ inputs['docker-image'] }}
+        INPUT_KEEP_WORKSPACE: ${{ inputs['keep-workspace'] }}
         EVENT_PR_URL: ${{ github.event.pull_request.html_url }}
       run: |
         set -euo pipefail
@@ -103,6 +118,15 @@ runs:
         if [ "$INPUT_COMMENT" = "true" ]; then
           args+=(--comment)
         fi
+        if [ "$INPUT_ANNOTATIONS" = "true" ]; then
+          args+=(--github-annotations)
+        fi
+        if [ "$INPUT_STEP_SUMMARY" = "true" ]; then
+          args+=(--github-step-summary)
+        fi
+        if [ "$INPUT_FAIL_ON_DO_NOT_MERGE" = "true" ]; then
+          args+=(--fail-on-do-not-merge)
+        fi
         if [ "$INPUT_KEEP_WORKSPACE" = "true" ]; then
           args+=(--keep-workspace)
         else
@@ -112,8 +136,8 @@ runs:
         patchguard "${args[@]}"
 
     - name: Upload PatchGuard report
-      if: ${{ inputs.upload-artifact == 'true' }}
+      if: ${{ always() && inputs['upload-artifact'] == 'true' }}
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ inputs.artifact-name }}
+        name: ${{ inputs['artifact-name'] }}
         path: ${{ inputs.output }}

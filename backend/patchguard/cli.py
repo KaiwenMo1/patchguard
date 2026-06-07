@@ -9,6 +9,7 @@ from pathlib import Path
 from patchguard.config import PatchGuardSettings
 from patchguard.models import MergeDecision, PatchGuardReport, RiskReport
 from patchguard.services.demo_report_service import DemoReportService
+from patchguard.services.github_actions_service import emit_github_actions_output
 from patchguard.services.github_service import GitHubService, GitHubServiceError
 from patchguard.services.markdown_report_service import write_markdown_report
 from patchguard.services.pr_comment_service import GitHubPRCommentService, PRCommentResult
@@ -89,6 +90,21 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Post or update a concise PatchGuard summary comment on the pull request.",
     )
+    analyze_parser.add_argument(
+        "--github-annotations",
+        action="store_true",
+        help="Emit GitHub Actions workflow annotations for policy, test, and security evidence.",
+    )
+    analyze_parser.add_argument(
+        "--github-step-summary",
+        action="store_true",
+        help="Append a concise PatchGuard summary to GITHUB_STEP_SUMMARY when running in GitHub Actions.",
+    )
+    analyze_parser.add_argument(
+        "--fail-on-do-not-merge",
+        action="store_true",
+        help="Exit with code 2 when the recommendation is do_not_merge.",
+    )
 
     demo_parser = subparsers.add_parser(
         "analyze-demo",
@@ -119,6 +135,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--cleanup-workspace",
         action="store_true",
         help="Delete the copied demo workspace after writing the report.",
+    )
+    demo_parser.add_argument(
+        "--github-annotations",
+        action="store_true",
+        help="Emit GitHub Actions workflow annotations for policy, test, and security evidence.",
+    )
+    demo_parser.add_argument(
+        "--github-step-summary",
+        action="store_true",
+        help="Append a concise PatchGuard summary to GITHUB_STEP_SUMMARY when running in GitHub Actions.",
     )
 
     full_parser = subparsers.add_parser(
@@ -168,6 +194,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Post or update a concise PatchGuard summary comment on the pull request.",
     )
+    full_parser.add_argument(
+        "--github-annotations",
+        action="store_true",
+        help="Emit GitHub Actions workflow annotations for policy, test, and security evidence.",
+    )
+    full_parser.add_argument(
+        "--github-step-summary",
+        action="store_true",
+        help="Append a concise PatchGuard summary to GITHUB_STEP_SUMMARY when running in GitHub Actions.",
+    )
     return parser
 
 
@@ -200,8 +236,11 @@ def main(argv: list[str] | None = None) -> int:
             parser.exit(1, f"error: {exc}\n")
         if args.output_format == "markdown":
             write_markdown_report(report, Path(args.out))
+        _maybe_emit_github_actions_output(args, report)
         _print_skeleton_summary(report)
         _print_comment_result(_maybe_comment(args, report))
+        if args.fail_on_do_not_merge and report.merge_decision == MergeDecision.DO_NOT_MERGE:
+            return 2
         return 0
 
     if args.command == "analyze-demo":
@@ -216,6 +255,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         except ValueError as exc:
             parser.error(str(exc))
+        _maybe_emit_github_actions_output(args, report)
         _print_skeleton_summary(report)
         return 0
 
@@ -238,6 +278,7 @@ def main(argv: list[str] | None = None) -> int:
         docker_image=args.docker_image,
     )
     _print_summary(report)
+    _maybe_emit_github_actions_output(args, report)
     _print_comment_result(_maybe_comment(args, report))
 
     if args.fail_on_do_not_merge and report.merge_decision == MergeDecision.DO_NOT_MERGE:
@@ -384,6 +425,20 @@ def _maybe_comment(args: argparse.Namespace, report: RiskReport | PatchGuardRepo
     if not getattr(args, "comment", False):
         return None
     return GitHubPRCommentService(token=getattr(args, "github_token", None)).post_or_update(report)
+
+
+def _maybe_emit_github_actions_output(args: argparse.Namespace, report: RiskReport | PatchGuardReport) -> None:
+    if not (getattr(args, "github_annotations", False) or getattr(args, "github_step_summary", False)):
+        return
+    result = emit_github_actions_output(
+        report,
+        annotations=getattr(args, "github_annotations", False),
+        step_summary=getattr(args, "github_step_summary", False),
+    )
+    if result.step_summary_written:
+        print(f"GitHub step summary: {result.step_summary_path}")
+    if result.annotations_emitted:
+        print(f"GitHub annotations: {result.annotations_emitted}")
 
 
 def _print_comment_result(result: PRCommentResult | None) -> None:
