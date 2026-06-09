@@ -1,105 +1,131 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
-from fastapi.testclient import TestClient
+import httpx
+import pytest
 from patchguard.api_app import AnalysisStore, create_app
 from patchguard.models import ChangedFile, PullRequestInfo, RiskReport
 
+pytestmark = pytest.mark.anyio
 
-def test_api_submit_poll_and_fetch_report(tmp_path) -> None:
-    store = AnalysisStore(tmp_path / "api_runs")
-    app = create_app(store=store, report_service_factory=lambda: FakeReportService())
-    client = TestClient(app)
 
-    submit = client.post(
-        "/api/analyze-pr",
-        json={"pr_url": "https://github.com/owner/repo/pull/123"},
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+
+
+def api_client(app) -> httpx.AsyncClient:  # noqa: ANN001
+    return httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://testserver",
     )
 
-    assert submit.status_code == 202
-    analysis_id = submit.json()["analysis_id"]
 
-    status_response = client.get(f"/api/analysis/{analysis_id}")
-    assert status_response.status_code == 200
-    status_payload = status_response.json()
-    assert status_payload["status"] == "completed"
-    assert status_payload["pr_url"] == "https://github.com/owner/repo/pull/123"
+async def test_api_submit_poll_and_fetch_report(tmp_path) -> None:
+    store = AnalysisStore(tmp_path / "api_runs")
+    app = create_app(store=store, report_service_factory=lambda: FakeReportService())
+    async with api_client(app) as client:
+        submit = await client.post(
+            "/api/analyze-pr",
+            json={"pr_url": "https://github.com/owner/repo/pull/123"},
+        )
 
-    report_response = client.get(f"/api/report/{analysis_id}")
-    assert report_response.status_code == 200
-    report_payload = report_response.json()
-    assert report_payload["pr"]["owner"] == "owner"
-    assert report_payload["changed_files"][0]["filename"] == "src/app.py"
-    assert report_payload["risk_score"] == 0
+        assert submit.status_code == 202
+        analysis_id = submit.json()["analysis_id"]
+
+        status_response = await wait_for_terminal_status(client, analysis_id)
+        assert status_response.status_code == 200
+        status_payload = status_response.json()
+        assert status_payload["status"] == "completed"
+        assert status_payload["pr_url"] == "https://github.com/owner/repo/pull/123"
+
+        report_response = await client.get(f"/api/report/{analysis_id}")
+        assert report_response.status_code == 200
+        report_payload = report_response.json()
+        assert report_payload["pr"]["owner"] == "owner"
+        assert report_payload["changed_files"][0]["filename"] == "src/app.py"
+        assert report_payload["risk_score"] == 0
 
 
-def test_api_forwards_safety_options_to_report_service(tmp_path) -> None:
+async def test_api_forwards_safety_options_to_report_service(tmp_path) -> None:
     fake_service = FakeReportService()
     store = AnalysisStore(tmp_path / "api_runs")
     app = create_app(store=store, report_service_factory=lambda: fake_service)
-    client = TestClient(app)
+    async with api_client(app) as client:
+        response = await client.post(
+            "/api/analyze-pr",
+            json={
+                "pr_url": "https://github.com/owner/repo/pull/123",
+                "skip_llm": True,
+                "skip_docker": True,
+            },
+        )
 
-    response = client.post(
-        "/api/analyze-pr",
-        json={
-            "pr_url": "https://github.com/owner/repo/pull/123",
-            "skip_llm": True,
-            "skip_docker": True,
-        },
-    )
-
-    assert response.status_code == 202
+        assert response.status_code == 202
+        await wait_for_terminal_status(client, response.json()["analysis_id"])
     assert fake_service.received_options["skip_llm"] is True
     assert fake_service.received_options["skip_docker"] is True
 
 
-def test_api_records_failed_background_analysis(tmp_path) -> None:
+async def test_api_records_failed_background_analysis(tmp_path) -> None:
     store = AnalysisStore(tmp_path / "api_runs")
     app = create_app(store=store, report_service_factory=lambda: FailingReportService())
-    client = TestClient(app)
+    async with api_client(app) as client:
+        submit = await client.post(
+            "/api/analyze-pr",
+            json={"pr_url": "https://github.com/owner/repo/pull/123"},
+        )
 
-    submit = client.post(
-        "/api/analyze-pr",
-        json={"pr_url": "https://github.com/owner/repo/pull/123"},
-    )
+        analysis_id = submit.json()["analysis_id"]
+        status_payload = (await wait_for_terminal_status(client, analysis_id)).json()
+        assert status_payload["status"] == "failed"
+        assert "boom" in status_payload["error"]
 
-    analysis_id = submit.json()["analysis_id"]
-    status_payload = client.get(f"/api/analysis/{analysis_id}").json()
-    assert status_payload["status"] == "failed"
-    assert "boom" in status_payload["error"]
-
-    report_response = client.get(f"/api/report/{analysis_id}")
-    assert report_response.status_code == 404
+        report_response = await client.get(f"/api/report/{analysis_id}")
+        assert report_response.status_code == 404
 
 
-def test_api_report_returns_conflict_before_completion(tmp_path) -> None:
+async def test_api_report_returns_conflict_before_completion(tmp_path) -> None:
     store = AnalysisStore(tmp_path / "api_runs")
     record = store.create("https://github.com/owner/repo/pull/123")
     app = create_app(store=store, report_service_factory=lambda: FakeReportService())
-    client = TestClient(app)
-
-    response = client.get(f"/api/report/{record.analysis_id}")
+    async with api_client(app) as client:
+        response = await client.get(f"/api/report/{record.analysis_id}")
 
     assert response.status_code == 409
     assert "not finished" in response.json()["detail"]
 
 
-def test_api_allows_local_dashboard_origin(tmp_path) -> None:
+async def test_api_allows_local_dashboard_origin(tmp_path) -> None:
     store = AnalysisStore(tmp_path / "api_runs")
     app = create_app(store=store, report_service_factory=lambda: FakeReportService())
-    client = TestClient(app)
-
-    response = client.options(
-        "/api/analyze-pr",
-        headers={
-            "Origin": "http://127.0.0.1:5173",
-            "Access-Control-Request-Method": "POST",
-        },
-    )
+    async with api_client(app) as client:
+        response = await client.options(
+            "/api/analyze-pr",
+            headers={
+                "Origin": "http://127.0.0.1:5173",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
+
+
+async def wait_for_terminal_status(
+    client: httpx.AsyncClient,
+    analysis_id: str,
+    *,
+    attempts: int = 100,
+) -> httpx.Response:
+    for _ in range(attempts):
+        response = await client.get(f"/api/analysis/{analysis_id}")
+        if response.json()["status"] in {"completed", "failed", "partial"}:
+            return response
+        await asyncio.sleep(0.01)
+    raise AssertionError(f"Analysis {analysis_id} did not finish")
 
 
 class FakeReportService:

@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -122,7 +122,9 @@ class AnalysisStore:
     def _write_record(self, record: AnalysisRecord) -> None:
         path = self.status_path(record.analysis_id)
         ensure_dir(path.parent)
-        path.write_text(record.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        temporary_path = path.with_suffix(".json.tmp")
+        temporary_path.write_text(record.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        temporary_path.replace(path)
 
 
 def create_app(
@@ -150,10 +152,10 @@ def create_app(
         response_model=AnalysisSubmitted,
         status_code=status.HTTP_202_ACCEPTED,
     )
-    def analyze_pr(request: AnalyzePRRequest, background_tasks: BackgroundTasks) -> AnalysisSubmitted:
+    async def analyze_pr(request: AnalyzePRRequest) -> AnalysisSubmitted:
         analysis_store: AnalysisStore = app.state.analysis_store
         record = analysis_store.create(request.pr_url)
-        background_tasks.add_task(_run_analysis, app, record.analysis_id, request)
+        _start_analysis(app, record.analysis_id, request)
         return AnalysisSubmitted(
             analysis_id=record.analysis_id,
             status=record.status,
@@ -162,11 +164,11 @@ def create_app(
         )
 
     @app.get("/api/analysis/{analysis_id}", response_model=AnalysisRecord)
-    def get_analysis(analysis_id: str) -> AnalysisRecord:
+    async def get_analysis(analysis_id: str) -> AnalysisRecord:
         return _get_record_or_404(app, analysis_id)
 
     @app.get("/api/report/{analysis_id}")
-    def get_report(analysis_id: str) -> JSONResponse:
+    async def get_report(analysis_id: str) -> JSONResponse:
         record = _get_record_or_404(app, analysis_id)
         if record.status not in TERMINAL_STATUSES:
             raise HTTPException(
@@ -187,6 +189,17 @@ def create_app(
         return JSONResponse(json.loads(report_path.read_text(encoding="utf-8")))
 
     return app
+
+
+def _start_analysis(app: FastAPI, analysis_id: str, request: AnalyzePRRequest) -> None:
+    """Start one local analysis worker without blocking API status polling."""
+
+    threading.Thread(
+        target=_run_analysis,
+        args=(app, analysis_id, request),
+        name=f"patchguard-analysis-{analysis_id[:8]}",
+        daemon=True,
+    ).start()
 
 
 def _run_analysis(app: FastAPI, analysis_id: str, request: AnalyzePRRequest) -> None:
