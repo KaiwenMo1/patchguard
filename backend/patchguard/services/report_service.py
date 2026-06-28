@@ -8,12 +8,21 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from patchguard.config import PatchGuardSettings
-from patchguard.models import PatchGuardReport, RiskReport, RunStatus, TestResult, ToolRun
+from patchguard.models import (
+    BaseComparisonResult,
+    PatchGuardReport,
+    RiskReport,
+    RunStatus,
+    TestResult,
+    ToolRun,
+)
 from patchguard.services.ai_review_service import AIReviewService
 from patchguard.services.clone_service import CloneService
 from patchguard.services.contract_extraction_service import ContractExtractionService
+from patchguard.services.evidence_planner_service import EvidencePlannerService
 from patchguard.services.function_extractor import FunctionExtractor
 from patchguard.services.github_service import GitHubService
+from patchguard.services.memory_service import DEFAULT_MEMORY_DB, MemoryService
 from patchguard.services.policy_service import PolicyService
 from patchguard.services.risk_score_service import RiskScoreService
 from patchguard.services.sandbox_service import SandboxService
@@ -57,6 +66,7 @@ class SkeletonReportService:
         *,
         settings: PatchGuardSettings | None = None,
         command_runner: CommandRunner | None = None,
+        git_token: str | None = None,
     ) -> None:
         self.settings = settings or PatchGuardSettings()
         self.command_runner = command_runner or CommandRunner()
@@ -64,6 +74,7 @@ class SkeletonReportService:
         self.clone_service = CloneService(
             command_runner=self.command_runner,
             timeout_seconds=self.settings.command_timeout_seconds,
+            git_token=git_token,
         )
         self.function_extractor = FunctionExtractor()
         self.contract_extraction_service = ContractExtractionService()
@@ -72,6 +83,7 @@ class SkeletonReportService:
         self.risk_score_service = RiskScoreService()
         self.policy_service = PolicyService()
         self.ai_review_service = AIReviewService()
+        self.evidence_planner_service = EvidencePlannerService()
 
     def analyze(
         self,
@@ -82,6 +94,9 @@ class SkeletonReportService:
         cleanup_workspace: bool = False,
         skip_llm: bool = False,
         skip_docker: bool = False,
+        compare_base: bool = False,
+        use_memory: bool = False,
+        memory_db_path: str | Path = DEFAULT_MEMORY_DB,
         status_callback: Callable[[str], None] | None = None,
     ) -> RiskReport:
         self._emit(status_callback, "fetching_pr")
@@ -199,6 +214,14 @@ class SkeletonReportService:
                     else:
                         self._run_generated_tests(sandbox, checkout.repo_dir, report)
 
+                    if compare_base:
+                        report.base_comparison = self._compare_base_and_head(
+                            sandbox,
+                            checkout.repo_dir,
+                            base_sha=report.pr.base_sha,
+                            head_sha=report.pr.head_sha,
+                        )
+
                     self._emit(status_callback, "scanning_security")
                     security_scanner = SecurityScanService(sandbox)
                     ruff_run, static_findings = security_scanner.run_ruff(
@@ -224,12 +247,65 @@ class SkeletonReportService:
         )
         self.risk_score_service.score_risk_report(report)
         self.policy_service.apply(report, repo_dir=policy_repo_dir)
+        if use_memory:
+            self._apply_memory(report, memory_db_path=memory_db_path)
+        report.evidence_plan = self.evidence_planner_service.plan(
+            report,
+            memory_enabled=use_memory,
+            base_comparison_enabled=compare_base,
+        )
         self._apply_ai_review(report, skip_llm=skip_llm)
         path = Path(output_path)
         ensure_dir(path.parent)
         report.report_path = str(path)
         path.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        if use_memory:
+            MemoryService(memory_db_path).index_report(path)
         return report
+
+    def _compare_base_and_head(
+        self,
+        sandbox: SandboxService,
+        repo_dir: Path,
+        *,
+        base_sha: str | None,
+        head_sha: str | None,
+    ) -> BaseComparisonResult:
+        comparison = BaseComparisonResult(
+            enabled=True,
+            base_sha=base_sha,
+            head_sha=head_sha,
+        )
+        if not base_sha or not head_sha:
+            comparison.status = "skipped"
+            comparison.summary = "Base or head SHA was unavailable; comparison skipped."
+            return comparison
+        base_tests = sandbox.run_existing_tests_at_ref(
+            repo_dir=repo_dir,
+            git_ref=base_sha,
+            name="run base pytest suite",
+            timeout_seconds=self.settings.command_timeout_seconds,
+        )
+        head_tests = sandbox.run_existing_tests_at_ref(
+            repo_dir=repo_dir,
+            git_ref=head_sha,
+            name="run head pytest suite",
+            timeout_seconds=self.settings.command_timeout_seconds,
+        )
+        comparison.base_tests = base_tests
+        comparison.head_tests = head_tests
+        comparison.status = classify_base_comparison(base_tests, head_tests)
+        comparison.summary = summary_for_base_comparison(comparison)
+        return comparison
+
+    @staticmethod
+    def _apply_memory(
+        report: RiskReport | PatchGuardReport,
+        *,
+        memory_db_path: str | Path,
+    ) -> None:
+        memory = MemoryService(memory_db_path)
+        report.memory_hits = memory.search_for_report(report)
 
     def _apply_ai_review(
         self,
@@ -366,6 +442,7 @@ class PatchGuardRunner:
         settings: PatchGuardSettings | None = None,
         github_service: GitHubService | None = None,
         command_runner: CommandRunner | None = None,
+        git_token: str | None = None,
     ) -> None:
         self.settings = settings or PatchGuardSettings()
         self.command_runner = command_runner or CommandRunner()
@@ -373,6 +450,7 @@ class PatchGuardRunner:
         self.clone_service = CloneService(
             command_runner=self.command_runner,
             timeout_seconds=self.settings.command_timeout_seconds,
+            git_token=git_token,
         )
         self.function_extractor = FunctionExtractor()
         self.contract_extraction_service = ContractExtractionService()
@@ -381,6 +459,7 @@ class PatchGuardRunner:
         self.risk_score_service = RiskScoreService()
         self.policy_service = PolicyService()
         self.ai_review_service = AIReviewService()
+        self.evidence_planner_service = EvidencePlannerService()
 
     def run(
         self,
@@ -391,6 +470,9 @@ class PatchGuardRunner:
         skip_docker: bool = False,
         skip_llm: bool = False,
         docker_image: str | None = None,
+        compare_base: bool = False,
+        use_memory: bool = False,
+        memory_db_path: str | Path = DEFAULT_MEMORY_DB,
     ) -> PatchGuardReport:
         report = PatchGuardReport(input_pr_url=pr_url)
         run_dir = self._new_run_dir(runs_dir or self.settings.runs_dir)
@@ -446,7 +528,15 @@ class PatchGuardRunner:
 
         if skip_docker:
             self._mark_docker_skipped(report, reason="Docker execution disabled by --skip-docker")
-            return self._finalize(report, output_path, repo_dir=repo_dir, skip_llm=skip_llm)
+            return self._finalize(
+                report,
+                output_path,
+                repo_dir=repo_dir,
+                skip_llm=skip_llm,
+                compare_base=compare_base,
+                use_memory=use_memory,
+                memory_db_path=memory_db_path,
+            )
 
         sandbox = SandboxService(
             command_runner=self.command_runner,
@@ -459,7 +549,15 @@ class PatchGuardRunner:
         report.sandbox_results.append(docker_build)
         if docker_build.status != RunStatus.PASSED:
             self._mark_docker_skipped(report, reason="Docker image build failed")
-            return self._finalize(report, output_path, repo_dir=repo_dir, skip_llm=skip_llm)
+            return self._finalize(
+                report,
+                output_path,
+                repo_dir=repo_dir,
+                skip_llm=skip_llm,
+                compare_base=compare_base,
+                use_memory=use_memory,
+                memory_db_path=memory_db_path,
+            )
 
         dependency_run = sandbox.run_in_repo(
             repo_dir=repo_dir,
@@ -541,6 +639,14 @@ class PatchGuardRunner:
                 )
             )
 
+        if compare_base:
+            report.base_comparison = self._compare_base_and_head(
+                sandbox,
+                repo_dir,
+                base_sha=report.pr.base_sha,
+                head_sha=report.pr.head_sha,
+            )
+
         ruff_run, static_findings = security_scanner.run_ruff(repo_dir, report.changed_files)
         report.static_analysis_results.append(ruff_run)
         report.static_findings.extend(static_findings)
@@ -549,7 +655,50 @@ class PatchGuardRunner:
         report.static_analysis_results.append(bandit_run)
         report.security_findings.extend(security_findings)
 
-        return self._finalize(report, output_path, repo_dir=repo_dir, skip_llm=skip_llm)
+        return self._finalize(
+            report,
+            output_path,
+            repo_dir=repo_dir,
+            skip_llm=skip_llm,
+            compare_base=compare_base,
+            use_memory=use_memory,
+            memory_db_path=memory_db_path,
+        )
+
+    def _compare_base_and_head(
+        self,
+        sandbox: SandboxService,
+        repo_dir: Path,
+        *,
+        base_sha: str | None,
+        head_sha: str | None,
+    ) -> BaseComparisonResult:
+        comparison = BaseComparisonResult(
+            enabled=True,
+            base_sha=base_sha,
+            head_sha=head_sha,
+        )
+        if not base_sha or not head_sha:
+            comparison.status = "skipped"
+            comparison.summary = "Base or head SHA was unavailable; comparison skipped."
+            return comparison
+        base_tests = sandbox.run_existing_tests_at_ref(
+            repo_dir=repo_dir,
+            git_ref=base_sha,
+            name="run base pytest suite",
+            timeout_seconds=self.settings.command_timeout_seconds,
+        )
+        head_tests = sandbox.run_existing_tests_at_ref(
+            repo_dir=repo_dir,
+            git_ref=head_sha,
+            name="run head pytest suite",
+            timeout_seconds=self.settings.command_timeout_seconds,
+        )
+        comparison.base_tests = base_tests
+        comparison.head_tests = head_tests
+        comparison.status = classify_base_comparison(base_tests, head_tests)
+        comparison.summary = summary_for_base_comparison(comparison)
+        return comparison
 
     def _mark_docker_skipped(self, report: PatchGuardReport, *, reason: str) -> None:
         command_runner = self.command_runner
@@ -599,6 +748,15 @@ class PatchGuardRunner:
             )
         )
 
+    @staticmethod
+    def _apply_memory(
+        report: RiskReport | PatchGuardReport,
+        *,
+        memory_db_path: str | Path,
+    ) -> None:
+        memory = MemoryService(memory_db_path)
+        report.memory_hits = memory.search_for_report(report)
+
     def _finalize(
         self,
         report: PatchGuardReport,
@@ -606,6 +764,9 @@ class PatchGuardRunner:
         *,
         repo_dir: str | Path | None = None,
         skip_llm: bool = False,
+        compare_base: bool = False,
+        use_memory: bool = False,
+        memory_db_path: str | Path = DEFAULT_MEMORY_DB,
     ) -> PatchGuardReport:
         report.failure_mappings = self.failure_mapping_service.map_failures(
             report.generated_test_results,
@@ -613,6 +774,13 @@ class PatchGuardRunner:
         )
         self.risk_score_service.score(report)
         self.policy_service.apply(report, repo_dir=repo_dir)
+        if use_memory:
+            self._apply_memory(report, memory_db_path=memory_db_path)
+        report.evidence_plan = self.evidence_planner_service.plan(
+            report,
+            memory_enabled=use_memory,
+            base_comparison_enabled=compare_base,
+        )
         self._apply_ai_review(report, skip_llm=skip_llm)
         if report.pr is None:
             report.status = "failed"
@@ -624,6 +792,8 @@ class PatchGuardRunner:
             report.status = "complete"
         path = output_path or self._default_report_path(report)
         write_json_report(report, path)
+        if use_memory:
+            MemoryService(memory_db_path).index_report(path)
         return report
 
     def _default_report_path(self, report: PatchGuardReport) -> Path:
@@ -644,6 +814,10 @@ class PatchGuardRunner:
     def _all_runs(report: PatchGuardReport):
         yield from report.sandbox_results
         yield from report.existing_test_results
+        if report.base_comparison.base_tests:
+            yield report.base_comparison.base_tests
+        if report.base_comparison.head_tests:
+            yield report.base_comparison.head_tests
         if report.contract_extraction:
             yield report.contract_extraction
         yield from report.generated_test_results
@@ -672,3 +846,32 @@ class PatchGuardRunner:
         review = review_service.review(report)
         report.ai_review = review.review
         report.ai_review_run = review.tool_run
+
+
+def classify_base_comparison(base_tests: ToolRun, head_tests: ToolRun) -> str:
+    if base_tests.status == RunStatus.PASSED and head_tests.status == RunStatus.PASSED:
+        return "passed"
+    if base_tests.status == RunStatus.PASSED and head_tests.status == RunStatus.FAILED:
+        return "regression"
+    if base_tests.status == RunStatus.FAILED:
+        return "base_failed"
+    if head_tests.status == RunStatus.FAILED:
+        return "head_failed"
+    if base_tests.status == RunStatus.SKIPPED or head_tests.status == RunStatus.SKIPPED:
+        return "skipped"
+    return "error"
+
+
+def summary_for_base_comparison(comparison: BaseComparisonResult) -> str:
+    status = comparison.status
+    if status == "passed":
+        return "Base and PR-head pytest runs both passed."
+    if status == "regression":
+        return "Base pytest passed but PR-head pytest failed; this is regression evidence."
+    if status == "base_failed":
+        return "Base pytest failed, so head failure cannot be attributed only to this PR."
+    if status == "head_failed":
+        return "PR-head pytest failed; base did not produce a clean passing baseline."
+    if status == "skipped":
+        return "Base-vs-head pytest comparison was skipped."
+    return "Base-vs-head pytest comparison errored."

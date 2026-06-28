@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: patchguard-github-app
+    env: python
+    plan: starter
+    buildCommand: python -m pip install -e ".[dev]"
+    startCommand: bash scripts/start_github_app_hosted.sh
+    disk:
+      name: patchguard-data
+      mountPath: /opt/render/project/src/.patchguard
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: PATCHGUARD_APP_DB_PATH
+        value: .patchguard/github_app/patchguard-app.db
+      - key: PATCHGUARD_MEMORY_DB
+        value: .patchguard/memory/patchguard-memory.db
+      - key: PATCHGUARD_SKIP_DOCKER
+        value: "true"
+      - key: PATCHGUARD_USE_MEMORY
+        value: "true"
+      - key: PATCHGUARD_COMPARE_BASE
+        value: "false"
+      - key: PATCHGUARD_ENABLE_LLM
+        value: "false"
+      - key: PATCHGUARD_PUBLISH_CHECKS
+        value: "true"
+      - key: PATCHGUARD_PUBLIC_BASE_URL
+        sync: false
+      - key: PATCHGUARD_GITHUB_APP_ID
+        sync: false
+      - key: PATCHGUARD_GITHUB_APP_PRIVATE_KEY
+        sync: false
+      - key: PATCHGUARD_GITHUB_WEBHOOK_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false

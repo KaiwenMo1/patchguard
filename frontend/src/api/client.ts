@@ -1,6 +1,10 @@
 import type {
   AnalysisRecord,
   AnalysisSubmitted,
+  AppInstallationListResponse,
+  AppJobDetail,
+  AppRepositoryJobsResponse,
+  AppRepositoryListResponse,
   AnalyzePRRequest,
   RiskReport,
 } from "./types";
@@ -22,6 +26,9 @@ export class ApiError extends Error {
 export interface SubmitAnalysisOptions {
   skipLlm?: boolean;
   skipDocker?: boolean;
+  compareBase?: boolean;
+  useMemory?: boolean;
+  memoryDbPath?: string;
 }
 
 export async function submitAnalysis(
@@ -36,6 +43,9 @@ export async function submitAnalysis(
       cleanup_workspace: false,
       skip_llm: options.skipLlm ?? true,
       skip_docker: options.skipDocker ?? false,
+      compare_base: options.compareBase ?? false,
+      use_memory: options.useMemory ?? false,
+      memory_db_path: options.memoryDbPath ?? null,
     } satisfies AnalyzePRRequest),
   });
 }
@@ -46,6 +56,31 @@ export async function getAnalysis(analysisId: string): Promise<AnalysisRecord> {
 
 export async function getReport(analysisId: string): Promise<RiskReport> {
   return requestJson<RiskReport>(`/api/report/${analysisId}`);
+}
+
+export async function getAppInstallations(): Promise<AppInstallationListResponse> {
+  return requestJson<AppInstallationListResponse>("/api/app/installations");
+}
+
+export async function getAppRepositories(): Promise<AppRepositoryListResponse> {
+  return requestJson<AppRepositoryListResponse>("/api/app/repositories");
+}
+
+export async function getAppRepositoryJobs(
+  owner: string,
+  repo: string,
+): Promise<AppRepositoryJobsResponse> {
+  return requestJson<AppRepositoryJobsResponse>(
+    `/api/app/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/jobs`,
+  );
+}
+
+export async function getAppJob(jobId: number): Promise<AppJobDetail> {
+  return requestJson<AppJobDetail>(`/api/app/jobs/${jobId}`);
+}
+
+export async function getAppJobReport(jobId: number): Promise<RiskReport> {
+  return requestJson<RiskReport>(`/api/app/jobs/${jobId}/report`);
 }
 
 async function requestJson<T>(path: string, options?: RequestInit): Promise<T> {

@@ -1,0 +1,55 @@
+{
+  "action": "created",
+  "installation": {
+    "id": 98765,
+    "account": {
+      "login": "KaiwenMo1",
+      "id": 12345678,
+      "node_id": "U_kwDOExample",
+      "type": "User",
+      "site_admin": false
+    },
+    "repository_selection": "selected",
+    "access_tokens_url": "https://api.github.com/app/installations/98765/access_tokens",
+    "repositories_url": "https://api.github.com/installation/repositories",
+    "html_url": "https://github.com/settings/installations/98765",
+    "app_id": 12345,
+    "target_id": 12345678,
+    "target_type": "User",
+    "permissions": {
+      "contents": "read",
+      "metadata": "read",
+      "pull_requests": "write",
+      "checks": "write"
+    },
+    "events": [
+      "installation",
+      "installation_repositories",
+      "pull_request"
+    ]
+  },
+  "repositories": [
+    {
+      "id": 1001,
+      "node_id": "R_kwDOPatchGuard",
+      "name": "patchguard",
+      "full_name": "KaiwenMo1/patchguard",
+      "private": false,
+      "default_branch": "main"
+    },
+    {
+      "id": 1002,
+      "node_id": "R_kwDODemoParser",
+      "name": "demo-parser",
+      "full_name": "KaiwenMo1/demo-parser",
+      "private": false,
+      "default_branch": "trunk"
+    }
+  ],
+  "sender": {
+    "login": "KaiwenMo1",
+    "id": 12345678,
+    "type": "User",
+    "site_admin": false
+  }
+}

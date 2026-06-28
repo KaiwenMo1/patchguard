@@ -3,17 +3,30 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+import time
 from pathlib import Path
 
 from patchguard.config import PatchGuardSettings
 from patchguard.models import MergeDecision, PatchGuardReport, RiskReport
 from patchguard.services.demo_report_service import DemoReportService
 from patchguard.services.github_actions_service import emit_github_actions_output
+from patchguard.services.github_app_backfill_service import (
+    DEFAULT_BACKFILL_LIMIT,
+    BackfillResult,
+    GitHubAppBackfillError,
+    GitHubAppBackfillService,
+)
+from patchguard.services.github_app_check_service import GitHubAppCheckService
+from patchguard.services.github_app_job_service import DEFAULT_GITHUB_APP_DB
+from patchguard.services.github_app_job_service import process_next_job as process_next_app_job
 from patchguard.services.github_service import GitHubService, GitHubServiceError
 from patchguard.services.markdown_report_service import write_markdown_report
+from patchguard.services.memory_service import DEFAULT_MEMORY_DB, MemoryService
 from patchguard.services.pr_comment_service import GitHubPRCommentService, PRCommentResult
 from patchguard.services.report_service import PatchGuardRunner, SkeletonReportService
+from patchguard.storage.sqlite_store import GitHubAppSQLiteStore
 
 DEFAULT_TIMEOUT_SECONDS = PatchGuardSettings().command_timeout_seconds
 
@@ -84,6 +97,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-docker",
         action="store_true",
         help="Fetch, clone, and analyze the PR but skip Docker tests and static scans.",
+    )
+    analyze_parser.add_argument(
+        "--compare-base",
+        action="store_true",
+        help="Run pytest at the base SHA and PR head SHA to detect regressions.",
+    )
+    analyze_parser.add_argument(
+        "--use-memory",
+        action="store_true",
+        help="Retrieve similar prior PatchGuard evidence from the local memory index.",
+    )
+    analyze_parser.add_argument(
+        "--memory-db",
+        default=str(DEFAULT_MEMORY_DB),
+        help="Path to the local PatchGuard memory SQLite database.",
     )
     analyze_parser.add_argument(
         "--comment",
@@ -179,6 +207,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Disable LLM test generation even if OPENAI_API_KEY is set.",
     )
     full_parser.add_argument(
+        "--compare-base",
+        action="store_true",
+        help="Run pytest at the base SHA and PR head SHA to detect regressions.",
+    )
+    full_parser.add_argument(
+        "--use-memory",
+        action="store_true",
+        help="Retrieve similar prior PatchGuard evidence from the local memory index.",
+    )
+    full_parser.add_argument(
+        "--memory-db",
+        default=str(DEFAULT_MEMORY_DB),
+        help="Path to the local PatchGuard memory SQLite database.",
+    )
+    full_parser.add_argument(
         "--timeout",
         type=int,
         default=DEFAULT_TIMEOUT_SECONDS,
@@ -204,6 +247,122 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Append a concise PatchGuard summary to GITHUB_STEP_SUMMARY when running in GitHub Actions.",
     )
+
+    backfill_parser = subparsers.add_parser(
+        "app-backfill",
+        help="Enqueue recent PRs for repositories selected in a GitHub App installation.",
+    )
+    backfill_parser.add_argument(
+        "--installation-id",
+        type=int,
+        required=True,
+        help="GitHub App installation ID to backfill.",
+    )
+    backfill_parser.add_argument(
+        "--limit",
+        type=int,
+        default=DEFAULT_BACKFILL_LIMIT,
+        help=f"Maximum recent PRs to inspect per repository. Defaults to {DEFAULT_BACKFILL_LIMIT}.",
+    )
+    backfill_parser.add_argument(
+        "--db-path",
+        default=os.getenv("PATCHGUARD_APP_DB_PATH", str(DEFAULT_GITHUB_APP_DB)),
+        help="Path to the local GitHub App SQLite database.",
+    )
+    backfill_parser.add_argument(
+        "--github-token",
+        default=None,
+        help=(
+            "Optional dev override token for listing PRs. "
+            "Without this, PatchGuard uses GitHub App installation auth."
+        ),
+    )
+    backfill_parser.add_argument(
+        "--include-drafts",
+        action="store_true",
+        help="Include draft PRs in backfill jobs.",
+    )
+
+    worker_parser = subparsers.add_parser(
+        "app-worker",
+        help="Process queued GitHub App analysis jobs.",
+    )
+    worker_parser.add_argument(
+        "--db-path",
+        default=os.getenv("PATCHGUARD_APP_DB_PATH", str(DEFAULT_GITHUB_APP_DB)),
+        help="Path to the local GitHub App SQLite database.",
+    )
+    worker_parser.add_argument(
+        "--poll",
+        action="store_true",
+        help="Keep polling for queued jobs until interrupted.",
+    )
+    worker_parser.add_argument(
+        "--interval",
+        type=int,
+        default=10,
+        help="Polling interval in seconds when --poll is set. Defaults to 10.",
+    )
+    worker_parser.add_argument(
+        "--limit",
+        type=int,
+        default=1,
+        help="Maximum jobs to process when not polling. Defaults to 1.",
+    )
+    worker_parser.add_argument(
+        "--publish-checks",
+        action="store_true",
+        help="Create and update GitHub Check Runs for processed jobs.",
+    )
+    worker_parser.add_argument(
+        "--skip-docker",
+        action="store_true",
+        help="Skip Docker tests and scans. Reports will be partial.",
+    )
+    worker_parser.add_argument(
+        "--enable-llm",
+        action="store_true",
+        help="Enable OpenAI-powered contract extraction, generated tests, and AI review.",
+    )
+    worker_parser.add_argument(
+        "--cleanup-workspace",
+        action="store_true",
+        help="Delete cloned workspaces after each job.",
+    )
+    worker_parser.add_argument(
+        "--compare-base",
+        action="store_true",
+        help="Run base-vs-head pytest comparison for each job.",
+    )
+    worker_parser.add_argument(
+        "--use-memory",
+        action="store_true",
+        help="Retrieve similar prior PatchGuard evidence for each job.",
+    )
+    worker_parser.add_argument(
+        "--memory-db",
+        default=os.getenv("PATCHGUARD_MEMORY_DB", str(DEFAULT_MEMORY_DB)),
+        help="Path to the local PatchGuard memory SQLite database.",
+    )
+    worker_parser.add_argument(
+        "--public-base-url",
+        default=None,
+        help=(
+            "Public FastAPI base URL used for GitHub Check Run details links, "
+            "for example https://patchguard.example.com."
+        ),
+    )
+
+    memory_parser = subparsers.add_parser(
+        "memory-index",
+        help="Index one report file or a directory of reports into local PatchGuard memory.",
+    )
+    memory_parser.add_argument("path", help="Report JSON file or directory containing report JSON files.")
+    memory_parser.add_argument(
+        "--db-path",
+        default=str(DEFAULT_MEMORY_DB),
+        help="Path to the local PatchGuard memory SQLite database.",
+    )
     return parser
 
 
@@ -222,6 +381,7 @@ def main(argv: list[str] | None = None) -> int:
             report = SkeletonReportService(
                 settings=settings,
                 github_service=GitHubService(token=args.github_token),
+                git_token=args.github_token,
             ).analyze(
                 args.pr_url,
                 Path(args.out),
@@ -229,6 +389,9 @@ def main(argv: list[str] | None = None) -> int:
                 cleanup_workspace=args.cleanup_workspace,
                 skip_llm=args.skip_llm,
                 skip_docker=args.skip_docker,
+                compare_base=args.compare_base,
+                use_memory=args.use_memory,
+                memory_db_path=Path(args.memory_db),
             )
         except ValueError as exc:
             parser.error(str(exc))
@@ -259,6 +422,36 @@ def main(argv: list[str] | None = None) -> int:
         _print_skeleton_summary(report)
         return 0
 
+    if args.command == "app-backfill":
+        if args.limit <= 0:
+            parser.error("--limit must be greater than 0")
+        store = GitHubAppSQLiteStore(Path(args.db_path))
+        store.initialize()
+        service = GitHubAppBackfillService(
+            store=store,
+            token=args.github_token,
+            include_drafts=args.include_drafts,
+        )
+        try:
+            result = service.backfill_installation(
+                args.installation_id,
+                limit=args.limit,
+            )
+        except (GitHubAppBackfillError, KeyError) as exc:
+            parser.exit(1, f"error: {exc}\n")
+        _print_backfill_summary(result)
+        return 0
+
+    if args.command == "app-worker":
+        return _run_app_worker(args, parser)
+
+    if args.command == "memory-index":
+        result = MemoryService(args.db_path).index_path(args.path)
+        print(f"Memory DB: {result.db_path}")
+        print(f"Reports seen: {result.reports_seen}")
+        print(f"Documents indexed: {result.documents_indexed}")
+        return 0
+
     if args.timeout <= 0:
         parser.error("--timeout must be greater than 0")
     settings = PatchGuardSettings(
@@ -268,6 +461,7 @@ def main(argv: list[str] | None = None) -> int:
     runner = PatchGuardRunner(
         settings=settings,
         github_service=GitHubService(token=args.github_token),
+        git_token=args.github_token,
     )
     report = runner.run(
         args.pr_url,
@@ -276,6 +470,9 @@ def main(argv: list[str] | None = None) -> int:
         skip_docker=args.skip_docker,
         skip_llm=args.skip_llm,
         docker_image=args.docker_image,
+        compare_base=args.compare_base,
+        use_memory=args.use_memory,
+        memory_db_path=Path(args.memory_db),
     )
     _print_summary(report)
     _maybe_emit_github_actions_output(args, report)
@@ -419,6 +616,82 @@ def _print_failure_mappings(report: RiskReport | PatchGuardReport) -> None:
         print(f"  - {mapping.failed_test} -> {target}: {mapping.failure_summary}")
         print(f"    Risk: {mapping.risk_message}")
         print(f"    Next: {mapping.suggested_next_step}")
+
+
+def _print_backfill_summary(result: BackfillResult) -> None:
+    print(f"GitHub App installation: {result.github_installation_id}")
+    print(f"Repositories scanned: {result.repositories_scanned}")
+    print(f"Pull requests seen: {result.pull_requests_seen}")
+    print(f"Jobs created: {result.jobs_created}")
+    print(f"Duplicate jobs skipped: {result.duplicates_skipped}")
+    print(f"Draft PRs skipped: {result.draft_prs_skipped}")
+    if result.jobs:
+        print("Backfill jobs:")
+        for job in result.jobs[:20]:
+            status = "created" if job.created else "duplicate"
+            print(
+                f"  - {status}: job={job.job_id} "
+                f"{job.repository_full_name}#{job.pr_number} @{job.head_sha}"
+            )
+
+
+def _run_app_worker(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    if args.interval <= 0:
+        parser.error("--interval must be greater than 0")
+    if args.limit <= 0:
+        parser.error("--limit must be greater than 0")
+
+    check_service_factory = None
+    if args.publish_checks:
+        details_url = details_url_template(
+            args.public_base_url or os.getenv("PATCHGUARD_PUBLIC_BASE_URL")
+        )
+        check_service_factory = (
+            (lambda: GitHubAppCheckService(details_url=details_url))
+            if details_url
+            else GitHubAppCheckService
+        )
+    processed = 0
+
+    while True:
+        result = process_next_app_job(
+            db_path=Path(args.db_path),
+            check_service_factory=check_service_factory,
+            skip_llm=not args.enable_llm,
+            skip_docker=args.skip_docker,
+            cleanup_workspace=args.cleanup_workspace,
+            compare_base=args.compare_base,
+            use_memory=args.use_memory,
+            memory_db_path=Path(args.memory_db),
+        )
+        if result is None:
+            if args.poll:
+                print(f"No queued PatchGuard jobs. Sleeping {args.interval}s...")
+                time.sleep(args.interval)
+                continue
+            print("No queued PatchGuard jobs.")
+            return 0
+
+        processed += 1
+        job = result.job
+        message = f"Processed job {job.id}: {job.repository_full_name}"
+        if job.pr_number is not None:
+            message += f" PR #{job.pr_number}"
+        message += f" -> {job.status.value}"
+        if job.report_path:
+            message += f" ({job.report_path})"
+        print(message)
+        if job.error:
+            print(f"Job evidence/error: {job.error}")
+
+        if not args.poll and processed >= args.limit:
+            return 0
+
+
+def details_url_template(public_base_url: str | None) -> str | None:
+    if not public_base_url:
+        return None
+    return public_base_url.rstrip("/") + "/api/app/jobs/{job_id}/report"
 
 
 def _maybe_comment(args: argparse.Namespace, report: RiskReport | PatchGuardReport) -> PRCommentResult | None:

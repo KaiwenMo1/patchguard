@@ -15,12 +15,16 @@ export type ReportStatus = "complete" | "partial" | "failed";
 export type RunStatus = "passed" | "failed" | "skipped" | "error";
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 export type PolicyGateDecision = "pass" | "warn" | "block";
+export type GitHubAppJobStatus = "queued" | "running" | "completed" | "failed" | "partial";
 
 export interface AnalyzePRRequest {
   pr_url: string;
   cleanup_workspace?: boolean;
   skip_llm?: boolean;
   skip_docker?: boolean;
+  compare_base?: boolean;
+  use_memory?: boolean;
+  memory_db_path?: string | null;
 }
 
 export interface AnalysisSubmitted {
@@ -202,6 +206,48 @@ export interface EvidenceBasedReview {
   limitations: string[];
 }
 
+export interface EvidenceMemoryHit {
+  source_id: string;
+  source_type: string;
+  title: string;
+  summary: string;
+  score: number;
+  repository?: string | null;
+  pr_url?: string | null;
+  report_path?: string | null;
+  file_path?: string | null;
+  function_name?: string | null;
+  risk_score?: number | null;
+  risk_level?: string | null;
+  reasons?: string[];
+}
+
+export interface EvidencePlanStep {
+  step_id: string;
+  title: string;
+  reason: string;
+  target_files: string[];
+  target_functions: string[];
+  commands: string[];
+  status: "planned" | "completed" | "skipped" | "failed" | "error";
+  evidence: string[];
+}
+
+export interface EvidencePlan {
+  summary: string;
+  steps: EvidencePlanStep[];
+}
+
+export interface BaseComparisonResult {
+  enabled: boolean;
+  base_sha?: string | null;
+  head_sha?: string | null;
+  status: "not_run" | "passed" | "regression" | "base_failed" | "head_failed" | "error" | "skipped";
+  summary: string;
+  base_tests?: ToolRun | null;
+  head_tests?: ToolRun | null;
+}
+
 export interface RiskReport {
   version: string;
   generated_at: string;
@@ -214,6 +260,9 @@ export interface RiskReport {
   contract_extraction?: ToolRun | null;
   generated_tests?: GeneratedTest[];
   failure_mappings?: FailureMapping[];
+  memory_hits?: EvidenceMemoryHit[];
+  evidence_plan?: EvidencePlan | null;
+  base_comparison?: BaseComparisonResult | null;
   test_generation?: ToolRun | null;
   generated_test_results?: ToolRun[];
   security_findings?: SecurityFinding[];
@@ -234,4 +283,78 @@ export interface RiskReport {
   merge_decision: string;
   recommendation: string;
   report_path?: string | null;
+}
+
+export interface GitHubAppInstallation {
+  id?: number | null;
+  github_installation_id: number;
+  account_login: string;
+  account_type: string;
+  active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface GitHubAppRepository {
+  id?: number | null;
+  installation_id: number;
+  github_repo_id: number;
+  full_name: string;
+  private: boolean;
+  default_branch: string;
+  selected: boolean;
+  active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface GitHubAppAnalysisJob {
+  id?: number | null;
+  installation_id: number;
+  repository_id: number;
+  repository_full_name: string;
+  event_type: string;
+  status: GitHubAppJobStatus;
+  pr_number?: number | null;
+  pr_url?: string | null;
+  head_sha?: string | null;
+  base_sha?: string | null;
+  check_run_id?: number | null;
+  check_run_url?: string | null;
+  report_path?: string | null;
+  error?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface GitHubAppAnalysisReport {
+  id?: number | null;
+  job_id: number;
+  risk_score: number;
+  risk_level: RiskLevel;
+  merge_decision: string;
+  policy_decision: PolicyGateDecision;
+  report_json_path: string;
+  created_at?: string | null;
+}
+
+export interface AppJobDetail {
+  job: GitHubAppAnalysisJob;
+  report_summary?: GitHubAppAnalysisReport | null;
+}
+
+export interface AppInstallationListResponse {
+  count: number;
+  installations: GitHubAppInstallation[];
+}
+
+export interface AppRepositoryListResponse {
+  count: number;
+  repositories: GitHubAppRepository[];
+}
+
+export interface AppRepositoryJobsResponse {
+  repository: GitHubAppRepository;
+  count: number;
+  jobs: AppJobDetail[];
 }

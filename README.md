@@ -2,12 +2,20 @@
 
 Most AI PR review bots generate comments. PatchGuard generates evidence.
 
-PatchGuard analyzes a public GitHub pull request, checks out the PR code, runs targeted verification in a Docker sandbox, scans for static/security issues, applies a configurable merge policy, and produces an explainable merge-risk report. The MVP focuses on Python repositories.
+PatchGuard accepts a public Python pull request URL and produces an explainable merge-risk report backed by real command output: changed-code analysis, pytest results, generated regression tests, Ruff/Bandit findings, and deterministic policy decisions.
 
 [![CI](https://github.com/KaiwenMo1/patchguard/actions/workflows/ci.yml/badge.svg)](https://github.com/KaiwenMo1/patchguard/actions/workflows/ci.yml)
 [![Static demo](https://github.com/KaiwenMo1/patchguard/actions/workflows/pages.yml/badge.svg)](https://kaiwenmo1.github.io/patchguard/)
 
 ![PatchGuard dashboard preview](docs/screenshots/patchguard-dashboard.svg)
+
+## At A Glance
+
+| Input | Evidence collected | Output |
+| --- | --- | --- |
+| Public GitHub Python PR URL | Diff and changed functions, existing/generated pytest results, Ruff, Bandit, and pipeline failures | JSON or Markdown report, risk breakdown, policy decision, GitHub annotations, and optional PR comment |
+
+PatchGuard does not claim that a pull request is correct. It makes the available evidence, missing evidence, and reasons behind its recommendation inspectable.
 
 ## Start Here
 
@@ -16,10 +24,14 @@ Choose the path that matches what you want to evaluate:
 | Goal | Start here | Requirements |
 | --- | --- | --- |
 | See the product | [Open the zero-install dashboard](https://kaiwenmo1.github.io/patchguard/) | Browser only |
-| Verify the CLI quickly | Run the controlled demo below | Python 3.11+ and Docker |
+| Verify the CLI quickly | `./scripts/bootstrap.sh --no-docker && ./scripts/demo.sh --no-docker` | Python 3.11+ |
+| Run full local evidence | `./scripts/bootstrap.sh --with-docker && ./scripts/demo.sh --with-docker` | Python 3.11+ and Docker |
 | Analyze a real PR | Use `patchguard analyze <PR_URL>` | Python 3.11+, Docker, optional GitHub token |
 | Add PatchGuard to a repo | Use `KaiwenMo1/patchguard@v1` | GitHub Actions |
+| Run the GitHub App MVP | Follow [Local GitHub App development](docs/github-app/local-development.md) | GitHub App, tunnel, Python, Docker |
+| Host the GitHub App | Follow [Hosted GitHub App deployment](docs/github-app/hosted-deployment.md) | GitHub App, hosted FastAPI, optional Docker host |
 | Understand the design | Read [Architecture](docs/architecture.md) | None |
+| Write resume bullets | Use [Resume and interview context](#resume-and-interview-context) | None |
 
 The static dashboard displays reports produced by the real CLI. It does not execute Docker, FastAPI, GitHub requests, or OpenAI calls in the browser.
 
@@ -28,36 +40,31 @@ The static dashboard displays reports produced by the real CLI. It does not exec
 Requirements:
 
 - Python 3.11 or newer and Git.
-- Docker Desktop or Docker Engine for real test and scan evidence.
+- Docker Desktop or Docker Engine only for real test and scan evidence.
 - OpenAI API key only when intentionally enabling generated tests and AI review.
+
+Fastest path, no Docker and no OpenAI credits:
 
 ```bash
 git clone https://github.com/KaiwenMo1/patchguard.git
 cd patchguard
 
-python -m venv .venv
-# Linux, macOS, or WSL:
+./scripts/bootstrap.sh --no-docker
 . .venv/bin/activate
-# Windows PowerShell instead: .venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
-
-docker build -t patchguard-python-sandbox:latest -f sandbox/python/Dockerfile sandbox/python
-
-patchguard analyze-demo examples/demo_security_bug \
-  --out report.json \
-  --skip-llm
+./scripts/demo.sh --no-docker
 ```
 
-Expected evidence: existing pytest passes, Ruff passes, Bandit identifies the intentionally unsafe `eval`, and PatchGuard writes `report.json`. No OpenAI credits are used.
+This writes `.patchguard/quickstart/demo_security_bug.json` and marks Docker-only evidence as skipped. It is useful for confirming install, report generation, scoring, and the dashboard shape.
 
-Without Docker, verify installation and analyze metadata/diffs only:
+Full evidence path, still no OpenAI credits:
 
 ```bash
-patchguard analyze https://github.com/psf/requests/pull/7431 \
-  --out report.json \
-  --skip-docker \
-  --skip-llm
+./scripts/bootstrap.sh --with-docker
+. .venv/bin/activate
+./scripts/demo.sh --with-docker
 ```
+
+Expected full evidence: existing pytest passes, Ruff passes, Bandit identifies the intentionally unsafe `eval`, and PatchGuard writes a real report. No OpenAI credits are used.
 
 Verify the project itself:
 
@@ -89,6 +96,9 @@ It does not claim a PR is correct. It gives reviewers concrete signals before me
 - **Behavioral contract extraction** that turns the diff into intended behavior, preserved behavior, edge cases, invalid inputs, and uncertainties.
 - **Generated regression tests** for changed functions when an OpenAI API key is configured, guided by the extracted contract.
 - **Evidence-based AI review** that summarizes what changed, correctness notes, efficiency notes, top risks, and next actions using only collected evidence.
+- **Agentic evidence planner** that records which verification steps PatchGuard chose and why.
+- **PatchGuard Memory/RAG-lite** over prior local reports using SQLite FTS, so repeated risky files/functions can surface as historical evidence.
+- **Base-vs-head regression comparison** that can run pytest at both SHAs and distinguish pre-existing failures from PR-introduced regressions.
 - **Docker sandbox execution** with timeouts and disabled container networking.
 - **Existing and generated pytest results** captured as structured evidence.
 - **Generated-test failure mapping** from failed pytest names to target files, functions, and behavior checked.
@@ -97,6 +107,8 @@ It does not claim a PR is correct. It gives reviewers concrete signals before me
 - **Configurable policy gate** via `patchguard.yml`.
 - **FastAPI backend** for submitting and polling analyses.
 - **React + TypeScript dashboard** for a recruiter-friendly demo UI.
+- **Local GitHub App MVP** with webhook verification, SQLite job history, repository audit views, and Check Run publishing.
+- **Hosted report links for GitHub Checks** through the GitHub App report API.
 - **Static GitHub Pages demo mode** with checked-in sample reports.
 - **Reusable GitHub Action** for running PatchGuard automatically on pull requests.
 - **Optional GitHub PR comment** that updates one PatchGuard summary comment instead of spamming.
@@ -121,7 +133,7 @@ Without OpenAI, PatchGuard still fetches PR metadata, checks out code, analyzes 
 To intentionally enable behavioral contracts and generated tests:
 
 ```bash
-export OPENAI_API_KEY=sk_your_key_here
+export OPENAI_API_KEY="replace_with_openai_api_key"
 patchguard analyze <PR_URL> --out report.json
 ```
 
@@ -147,7 +159,7 @@ It should not say:
 This PR is definitely correct.
 ```
 
-## Quickstart: Local CLI
+## Analyze A Real PR
 
 Clone the repository:
 
@@ -159,15 +171,14 @@ cd patchguard
 Create an environment and install the CLI:
 
 ```bash
-python -m venv .venv
+./scripts/bootstrap.sh --no-docker
 . .venv/bin/activate
-python -m pip install -e ".[dev]"
 ```
 
 Build the Python sandbox image for real evidence runs:
 
 ```bash
-docker build -t patchguard-python-sandbox:latest -f sandbox/python/Dockerfile sandbox/python
+make sandbox
 ```
 
 First smoke-test GitHub fetch, diff analysis, checkout, risk scoring, and policy without Docker or OpenAI:
@@ -189,6 +200,27 @@ patchguard analyze https://github.com/psf/requests/pull/7431 \
   --keep-workspace
 ```
 
+Enable local memory retrieval from previous PatchGuard reports:
+
+```bash
+patchguard memory-index .patchguard/app_reports
+
+patchguard analyze https://github.com/psf/requests/pull/7431 \
+  --out report.json \
+  --skip-llm \
+  --use-memory
+```
+
+Run the stronger base-vs-head regression comparison on a Docker-capable machine:
+
+```bash
+patchguard analyze https://github.com/psf/requests/pull/7431 \
+  --out report.json \
+  --skip-llm \
+  --compare-base \
+  --timeout 180
+```
+
 Write a Markdown report:
 
 ```bash
@@ -200,6 +232,20 @@ patchguard analyze https://github.com/psf/requests/pull/7431 \
 ```
 
 If dependencies fail to install, tests fail, Docker is unavailable, or scans cannot complete, PatchGuard still writes a partial report. It does not fake pass/fail evidence.
+
+## Install Modes
+
+PatchGuard has three practical ways to use it:
+
+| Mode | Best for | Command |
+| --- | --- | --- |
+| Browser demo | Recruiters, screenshots, quick preview | Open the GitHub Pages demo |
+| No-Docker CLI | First local try, metadata/diff/risk smoke test | `./scripts/bootstrap.sh --no-docker && ./scripts/demo.sh --no-docker` |
+| Full CLI evidence | Real local verification with tests and scans | `./scripts/bootstrap.sh --with-docker && ./scripts/demo.sh --with-docker` |
+| GitHub Action | Users who do not want local setup | Add `uses: KaiwenMo1/patchguard@v1` to a workflow |
+| GitHub App MVP | Install-once repository audit on your account | Create a private app, run FastAPI and `patchguard app-worker --publish-checks` |
+
+Docker is not mandatory for trying PatchGuard, but it is required for the core evidence promise: running untrusted repository tests and static tools outside the host machine.
 
 ## Policy Gate
 
@@ -292,7 +338,7 @@ Public PRs work without a GitHub token until you hit lower unauthenticated rate 
 For higher limits:
 
 ```bash
-export GITHUB_TOKEN=ghp_your_token_here
+export GITHUB_TOKEN="replace_with_github_token"
 ```
 
 To post or update a concise PatchGuard comment on the PR:
@@ -526,6 +572,69 @@ An example workflow for this repository lives at `.github/workflows/patchguard.y
 
 It installs PatchGuard, builds the Docker sandbox, runs `patchguard analyze` on pull requests, and uploads a Markdown report artifact. The workflow uses `--skip-llm` by default, so it does not spend OpenAI credits unless you intentionally change it and add an `OPENAI_API_KEY` secret.
 
+## Local GitHub App Development
+
+PatchGuard also includes a local GitHub App MVP for install-once repository auditing:
+
+- Verifies GitHub webhook signatures.
+- Stores installations, repositories, webhook deliveries, jobs, and report summaries in SQLite.
+- Enqueues PR analysis jobs without running analysis inside the webhook request.
+- Processes queued jobs locally with the existing PatchGuard pipeline.
+- Publishes a concise `PatchGuard` Check Run on the pull request.
+- Adds a Check Run `Details` link to the hosted JSON report when `PATCHGUARD_PUBLIC_BASE_URL` is set.
+- Can retrieve similar prior evidence from local PatchGuard memory.
+- Can optionally compare base-vs-head pytest results on Docker-capable hosts.
+- Exposes app history through the FastAPI API and React `App audit` dashboard.
+
+Follow the full copy-paste setup guide:
+
+[docs/github-app/local-development.md](docs/github-app/local-development.md)
+
+For a hosted deployment guide with a Render blueprint and Docker-capable VPS notes:
+
+[docs/github-app/hosted-deployment.md](docs/github-app/hosted-deployment.md)
+
+Short version:
+
+```bash
+./scripts/bootstrap.sh --with-docker
+. .venv/bin/activate
+
+export PATCHGUARD_GITHUB_APP_ID="YOUR_APP_ID"
+export PATCHGUARD_GITHUB_APP_PRIVATE_KEY_PATH="$PWD/.patchguard/github_app/private-key.pem"
+export PATCHGUARD_GITHUB_WEBHOOK_SECRET="YOUR_WEBHOOK_SECRET"
+
+python -m uvicorn patchguard.api_app:app --reload --host 127.0.0.1 --port 8000
+```
+
+In a separate terminal, expose FastAPI with `ngrok http 8000` or `cloudflared tunnel --url http://127.0.0.1:8000`, then set the GitHub App webhook URL to:
+
+```text
+https://YOUR-TUNNEL-HOST/github/webhook
+```
+
+After opening or updating a PR in an installed test repository, process one queued job and publish its Check Run:
+
+```bash
+patchguard app-worker --publish-checks
+```
+
+To keep processing jobs while your local server is running:
+
+```bash
+patchguard app-worker --publish-checks --poll --interval 10
+```
+
+To include memory and base-vs-head comparison:
+
+```bash
+patchguard app-worker --publish-checks --poll --interval 10 --use-memory --compare-base
+```
+
+To test the GitHub App flow before Docker is ready, use `patchguard app-worker --publish-checks --skip-docker`. That run is partial evidence, not a full verification result.
+
+Never commit GitHub App secrets or private keys. `.env` and `.patchguard/` are ignored by this repository.
+
 ## Local Demo Repositories
 
 Controlled examples live under `examples/`:
@@ -580,13 +689,18 @@ flowchart TD
     R --> F[Test Generation Service]
     D --> G[Docker Sandbox]
     G --> H[Existing Pytest Results]
+    G --> T[Base vs Head Regression Comparison]
     G --> I[Generated Test Results]
     G --> J[Ruff + Bandit Scans]
+    L --> U[PatchGuard Memory / SQLite FTS]
+    U --> V[Similar Historical Evidence]
     I --> P[Test-to-Risk Mapping]
     C --> K[Risk Score Service]
     H --> K
+    T --> K
     I --> K
     J --> K
+    V --> K
     R --> K
     F --> K
     K --> Q[Policy Gate]
@@ -609,9 +723,14 @@ Supported today:
 - Python repositories.
 - Local CLI execution.
 - Docker-based test/static/security evidence.
+- Optional base-vs-head regression comparison.
+- Local PatchGuard Memory/RAG-lite over previous reports.
 - Local FastAPI + React dashboard.
 - Optional GitHub PR comments.
 - Reusable GitHub Action.
+- Local GitHub App MVP with webhooks, queued jobs, Check Runs, and report history.
+- Hosted GitHub App deployment guide with Render demo mode and Docker-capable host guidance.
+- Hosted report links from GitHub Checks to FastAPI report endpoints.
 - GitHub Actions annotations and job summaries.
 - On-demand `/patchguard` command workflow.
 - Configurable policy gate.
@@ -623,8 +742,12 @@ Known limitations:
 
 - Behavioral contracts, generated tests, and AI review need an OpenAI API key and may need human review.
 - Dependency installation can fail for some repositories; PatchGuard captures this as partial evidence.
+- Base-vs-head comparison can be slower because it installs dependencies and runs pytest at both SHAs.
+- Docker is practical local/CI isolation, not a hardened multi-tenant sandbox.
+- The SQLite GitHub App store is suitable for local demos and small self-hosted installs, not large multi-tenant SaaS.
 - GitHub Pages can only host the static frontend, not the Docker-backed analyzer.
-- Semgrep, TypeScript, hosted queueing, and report history are not implemented yet.
+- Render-style hosting is useful for webhook/check/report demos, but full Docker evidence needs a Docker-capable worker.
+- Semgrep, TypeScript, hosted multi-tenant queueing, and hardened sandboxing are not implemented yet.
 
 ## Roadmap
 
@@ -633,9 +756,8 @@ Known limitations:
 - Coverage-guided test generation.
 - Mutation testing for generated regression tests.
 - SWE-bench mini evaluation mode.
-- GitHub App installation flow.
-- GitHub Checks API integration with hosted reports.
-- Report history with SQLite-backed API storage.
+- Multi-tenant job queue and worker process.
+- Hardened remote sandbox workers for hosted Docker evidence.
 
 ## Development
 
@@ -662,20 +784,71 @@ python -m pip install -e .
 patchguard analyze --help
 ```
 
-## Project Summary For Resume Review
+## Resume And Interview Context
 
-Use this factual summary when asking a recruiter, mentor, or ChatGPT to help write resume bullets:
+This section is intentionally structured so recruiters, mentors, and AI assistants can understand the project without reading the entire repository.
 
-> PatchGuard is an open-source Python developer tool that converts GitHub pull requests into evidence-backed merge-risk reports. It fetches PR metadata and diffs, checks out the PR, identifies changed Python functions with AST analysis, executes pytest/Ruff/Bandit in Docker with resource limits, and computes a deterministic risk score and configurable policy decision. It includes a package-friendly CLI, FastAPI adapter, React dashboard, reusable GitHub Action, GitHub annotations, and optional LLM-generated regression tests. The repository includes controlled demo cases, checked-in reports produced by the real pipeline, and CI for backend tests, linting, frontend builds, and Action smoke testing.
+### Project Summary
 
-Engineering themes demonstrated:
+> PatchGuard is an open-source Python developer tool that converts GitHub pull requests into evidence-backed merge-risk reports. It fetches PR metadata and diffs, checks out the PR, identifies changed Python functions with AST analysis, executes pytest/Ruff/Bandit in Docker with resource limits, can compare base-vs-head test results, retrieves similar prior evidence from local SQLite memory, and computes a deterministic risk score plus configurable policy decision. The same pipeline is exposed through a CLI, FastAPI adapter, React dashboard, reusable GitHub Action, GitHub App flow, GitHub annotations, and optional PR comments. Optional LLM features extract behavioral contracts and generate targeted regression tests, but do not control the deterministic risk score.
 
-- Designed a modular evidence pipeline around explicit Pydantic report models.
-- Executed untrusted repository commands inside Docker with time, CPU, memory, and network limits.
-- Preserved failed and skipped analysis steps as structured partial evidence instead of inventing results.
-- Kept merge-risk scoring deterministic while using optional LLMs only for contract extraction, test generation, and evidence summaries.
-- Packaged one analysis workflow across CLI, FastAPI, React, and GitHub Actions surfaces.
+### Verified Engineering Facts
 
-Honest scope: the current MVP supports public Python PRs, tests the PR head rather than comparing base-versus-head results, and treats Docker as practical isolation rather than a hardened multi-tenant sandbox.
+| Area | What was implemented |
+| --- | --- |
+| Backend | Python 3.11+, Pydantic models, modular analysis services, FastAPI adapter |
+| Analysis | GitHub REST metadata, diff classification, AST changed-function extraction |
+| Execution | Docker-based pytest/Ruff/Bandit runs with time, CPU, memory, and disabled-network limits |
+| Reliability | Partial reports preserve skipped steps, command failures, timeouts, and installation failures |
+| Decision system | Deterministic multi-dimensional risk score plus repository-configurable policy gate |
+| Advanced evidence | Agentic evidence planner, base-vs-head comparison, generated-test failure mapping, SQLite memory/RAG-lite |
+| Product surfaces | Installable CLI, JSON/Markdown reports, React dashboard, GitHub Action, GitHub App Checks, annotations, PR comments |
+| AI features | Optional behavioral contract extraction, pytest generation, and evidence-grounded review |
+| Verification | Backend tests, Ruff checks, frontend production build, controlled demo repositories, CI workflow |
+
+### Design Decisions Worth Discussing
+
+- Risk scoring is deterministic so every recommendation can be traced to evidence and policy rules.
+- LLM output is optional and cannot silently change the merge-risk score.
+- Untrusted repository commands run inside Docker rather than directly on the host.
+- Failures become report evidence instead of being hidden or converted into fake pass results.
+- The static dashboard uses reports produced by the real CLI, allowing a zero-install demo without hosting arbitrary code execution.
+- The hosted GitHub App path keeps webhook handling fast by queueing jobs and processing analysis in a worker.
+
+### Honest Current Scope
+
+- Supports public GitHub pull requests for Python repositories.
+- Base-vs-head comparison is available, but it is slower and depends on both SHAs installing and testing successfully.
+- Uses Docker as practical local/CI isolation, not as a hardened multi-tenant security boundary.
+- Uses SQLite for GitHub App job/report history; this is appropriate for local or small self-hosted demos, not large SaaS scale.
+- Generated tests and AI review require an OpenAI API key and still require human judgment.
+
+### Copy-Paste Prompt For ChatGPT
+
+```text
+I built the open-source project PatchGuard. Use only the verified facts below and do not invent
+users, adoption, performance improvements, accuracy percentages, or business impact.
+
+PatchGuard converts public Python GitHub pull requests into evidence-backed merge-risk reports.
+It fetches PR metadata and diffs, extracts changed functions using Python AST analysis, runs
+pytest/Ruff/Bandit inside Docker with time and resource limits, preserves failures as partial
+evidence, optionally compares base-vs-head pytest results, retrieves similar historical report
+evidence from SQLite memory, and computes a deterministic explainable risk score plus configurable policy decision.
+It is exposed through a Python CLI, FastAPI adapter, React/TypeScript dashboard, reusable GitHub
+Action, GitHub App Check Runs, GitHub annotations, and optional PR comments. Optional LLM features
+extract behavioral contracts and generate targeted pytest tests, but do not control risk scoring.
+The repository has backend tests, controlled demo repositories, Ruff validation, frontend production
+builds, and GitHub Actions CI.
+
+Help me write:
+1. Three concise software-engineering resume bullets using strong action verbs.
+2. A two-sentence project description.
+3. Five likely technical interview questions and strong, honest answers.
+4. Which parts best demonstrate backend, DevOps, security, and AI-engineering skills.
+
+Clearly distinguish implemented features from planned work. Current limitations: Python/public
+PRs only, base-vs-head comparison can be slow, Docker is not a hardened multi-tenant sandbox,
+SQLite is not a multi-tenant SaaS database, and hosted full-evidence analysis needs a Docker-capable worker.
+```
 
 ## License

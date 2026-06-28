@@ -1,0 +1,34 @@
+{
+  "action": "added",
+  "installation": {
+    "id": 98765,
+    "account": {
+      "login": "KaiwenMo1",
+      "id": 12345678,
+      "type": "User",
+      "site_admin": false
+    },
+    "repository_selection": "selected",
+    "app_id": 12345,
+    "target_id": 12345678,
+    "target_type": "User"
+  },
+  "repository_selection": "selected",
+  "repositories_added": [
+    {
+      "id": 1003,
+      "node_id": "R_kwDOSecurityDemo",
+      "name": "security-demo",
+      "full_name": "KaiwenMo1/security-demo",
+      "private": true,
+      "default_branch": "main"
+    }
+  ],
+  "repositories_removed": [],
+  "sender": {
+    "login": "KaiwenMo1",
+    "id": 12345678,
+    "type": "User",
+    "site_admin": false
+  }
+}

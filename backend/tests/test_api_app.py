@@ -5,7 +5,13 @@ from pathlib import Path
 
 import httpx
 import pytest
-from patchguard.api_app import AnalysisStore, create_app
+from patchguard.api_app import (
+    AnalysisStore,
+    create_app,
+)
+from patchguard.api_app import (
+    _github_app_store as github_app_store_for_app,
+)
 from patchguard.models import ChangedFile, PullRequestInfo, RiskReport
 
 pytestmark = pytest.mark.anyio
@@ -60,6 +66,9 @@ async def test_api_forwards_safety_options_to_report_service(tmp_path) -> None:
                 "pr_url": "https://github.com/owner/repo/pull/123",
                 "skip_llm": True,
                 "skip_docker": True,
+                "compare_base": True,
+                "use_memory": True,
+                "memory_db_path": str(tmp_path / "memory.db"),
             },
         )
 
@@ -67,6 +76,20 @@ async def test_api_forwards_safety_options_to_report_service(tmp_path) -> None:
         await wait_for_terminal_status(client, response.json()["analysis_id"])
     assert fake_service.received_options["skip_llm"] is True
     assert fake_service.received_options["skip_docker"] is True
+    assert fake_service.received_options["compare_base"] is True
+    assert fake_service.received_options["use_memory"] is True
+    assert fake_service.received_options["memory_db_path"] == str(tmp_path / "memory.db")
+
+
+async def test_github_app_store_uses_env_db_path(monkeypatch, tmp_path) -> None:
+    db_path = tmp_path / "hosted-app.db"
+    monkeypatch.setenv("PATCHGUARD_APP_DB_PATH", str(db_path))
+    app = create_app()
+
+    store = github_app_store_for_app(app)
+
+    assert store.db_path == db_path
+    assert db_path.exists()
 
 
 async def test_api_records_failed_background_analysis(tmp_path) -> None:
@@ -141,12 +164,18 @@ class FakeReportService:
         cleanup_workspace: bool = False,
         skip_llm: bool = False,
         skip_docker: bool = False,
+        compare_base: bool = False,
+        use_memory: bool = False,
+        memory_db_path: str | Path | None = None,
         status_callback=None,  # noqa: ANN001
     ) -> RiskReport:
         self.received_options = {
             "cleanup_workspace": cleanup_workspace,
             "skip_llm": skip_llm,
             "skip_docker": skip_docker,
+            "compare_base": compare_base,
+            "use_memory": use_memory,
+            "memory_db_path": str(memory_db_path) if memory_db_path else None,
         }
         if status_callback:
             for status in [

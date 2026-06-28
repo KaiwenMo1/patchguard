@@ -1,0 +1,64 @@
+{
+  "action": "opened",
+  "number": 42,
+  "installation": {
+    "id": 98765,
+    "account": {
+      "login": "KaiwenMo1",
+      "id": 12345678,
+      "type": "User",
+      "site_admin": false
+    }
+  },
+  "repository": {
+    "id": 1001,
+    "node_id": "R_kwDOPatchGuard",
+    "name": "patchguard",
+    "full_name": "KaiwenMo1/patchguard",
+    "private": false,
+    "default_branch": "main",
+    "owner": {
+      "login": "KaiwenMo1",
+      "id": 12345678,
+      "type": "User",
+      "site_admin": false
+    }
+  },
+  "pull_request": {
+    "id": 9001,
+    "number": 42,
+    "state": "open",
+    "locked": false,
+    "title": "Improve parser behavior",
+    "user": {
+      "login": "contributor",
+      "id": 55555,
+      "type": "User",
+      "site_admin": false
+    },
+    "html_url": "https://github.com/KaiwenMo1/patchguard/pull/42",
+    "draft": false,
+    "base": {
+      "ref": "main",
+      "sha": "base-sha-123",
+      "repo": {
+        "id": 1001,
+        "full_name": "KaiwenMo1/patchguard"
+      }
+    },
+    "head": {
+      "ref": "feature/parser",
+      "sha": "head-sha-456",
+      "repo": {
+        "id": 1001,
+        "full_name": "KaiwenMo1/patchguard"
+      }
+    }
+  },
+  "sender": {
+    "login": "contributor",
+    "id": 55555,
+    "type": "User",
+    "site_admin": false
+  }
+}

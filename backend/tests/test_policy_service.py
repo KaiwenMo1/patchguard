@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from patchguard.models import (
+    BaseComparisonResult,
     ChangedFile,
     CommandResult,
     PatchGuardReport,
@@ -67,6 +68,33 @@ def test_policy_blocks_existing_test_failure() -> None:
 
     assert decision.decision == PolicyGateDecision.BLOCK
     assert "existing_test_failure" in decision.triggered_rules
+
+
+def test_policy_blocks_base_vs_head_regression() -> None:
+    report = PatchGuardReport(input_pr_url="https://github.com/o/r/pull/1")
+    report.risk_score = 35
+    report.base_comparison = BaseComparisonResult(
+        enabled=True,
+        status="regression",
+        summary="Base passed but head failed.",
+        base_tests=ToolRun(
+            name="run base pytest suite",
+            kind="existing_tests",
+            status=RunStatus.PASSED,
+            summary="base passed",
+        ),
+        head_tests=ToolRun(
+            name="run head pytest suite",
+            kind="existing_tests",
+            status=RunStatus.FAILED,
+            summary="head failed",
+        ),
+    )
+
+    decision = PolicyService().evaluate(report)
+
+    assert decision.decision == PolicyGateDecision.BLOCK
+    assert "base_head_regression" in decision.triggered_rules
 
 
 def test_policy_blocks_high_security_finding() -> None:

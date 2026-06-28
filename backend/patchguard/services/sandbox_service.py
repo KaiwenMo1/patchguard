@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 from pathlib import Path
 
 from patchguard.config import (
@@ -178,6 +179,46 @@ class SandboxService:
             timeout_seconds=timeout_seconds,
         )
         self._parse_pytest_status(run)
+        return run
+
+    def run_existing_tests_at_ref(
+        self,
+        *,
+        repo_dir: str | Path,
+        git_ref: str,
+        name: str,
+        timeout_seconds: int = 180,
+    ) -> ToolRun:
+        quoted_ref = shlex.quote(git_ref)
+        script = f"""
+        set -o pipefail
+        git checkout --force {quoted_ref}
+        if [ -f requirements.txt ]; then
+          python -m pip install -r requirements.txt
+        elif [ -f pyproject.toml ] || [ -f setup.py ]; then
+          python -m pip install -e .
+        else
+          echo "No requirements.txt, pyproject.toml, or setup.py found; skipping dependency install"
+        fi
+        if [ -d tests ] || find . -maxdepth 3 -name 'test_*.py' -not -path './.patchguard/*' -print -quit | grep -q .; then
+          python -m pytest -q
+        else
+          echo "No pytest tests discovered; skipping existing test run"
+        fi
+        """.strip()
+        run = self.run_in_repo(
+            repo_dir=repo_dir,
+            name=name,
+            kind="existing_tests",
+            script=script,
+            timeout_seconds=timeout_seconds,
+        )
+        stdout = run.command.stdout_tail if run.command else ""
+        if "No pytest tests discovered" in stdout and run.status == RunStatus.PASSED:
+            run.status = RunStatus.SKIPPED
+            run.summary = "No pytest tests discovered; existing test run skipped"
+        else:
+            self._parse_pytest_status(run)
         return run
 
     def skipped(self, *, name: str, kind: str, reason: str, command: list[str] | None = None) -> ToolRun:

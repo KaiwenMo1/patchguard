@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from patchguard.models import (
+    BaseComparisonResult,
     ChangedFile,
     CommandResult,
     MergeRecommendation,
@@ -205,6 +206,24 @@ def test_risk_report_scores_generated_test_pass_as_zero() -> None:
     assert report.risk_score == 0
     assert report.risk_reasons == []
     assert report.recommendation == MergeRecommendation.LIKELY_SAFE
+
+
+def test_base_vs_head_regression_forces_do_not_merge() -> None:
+    report = _risk_report([ChangedFile(filename="tests/test_app.py", status="modified", changes=1)])
+    report.base_comparison = BaseComparisonResult(
+        enabled=True,
+        status="regression",
+        summary="Base passed but head failed.",
+        base_tests=_existing_run(RunStatus.PASSED),
+        head_tests=_existing_run(RunStatus.FAILED),
+    )
+
+    RiskScoreService().score_risk_report(report)
+
+    assert report.risk_score >= 85
+    assert report.merge_decision.value == "do_not_merge"
+    assert report.recommendation == MergeRecommendation.DO_NOT_MERGE_BASE_HEAD_REGRESSION
+    assert any(reason.category == "base_comparison" for reason in report.risk_reasons)
 
 
 def test_recommendation_prioritizes_existing_test_failures() -> None:

@@ -11,12 +11,24 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from patchguard.app_models import (
+    GitHubAppAnalysisJob,
+    GitHubAppAnalysisReport,
+    GitHubAppInstallation,
+    GitHubAppRepository,
+)
+from patchguard.services.github_app_auth_service import GITHUB_WEBHOOK_SECRET_ENV
+from patchguard.services.github_app_webhook_service import (
+    GitHubAppWebhookRouter,
+    WebhookSignatureError,
+)
 from patchguard.services.report_service import SkeletonReportService
+from patchguard.storage.sqlite_store import GitHubAppSQLiteStore
 from patchguard.utils.file_utils import ensure_dir
 
 AnalysisStatus = Literal[
@@ -35,7 +47,10 @@ AnalysisStatus = Literal[
 
 TERMINAL_STATUSES = {"completed", "failed", "partial"}
 DEFAULT_API_RUNS_DIR = Path(".patchguard") / "api_runs"
+DEFAULT_GITHUB_APP_DB = Path(".patchguard") / "github_app" / "patchguard-app.db"
+GITHUB_APP_DB_ENV = "PATCHGUARD_APP_DB_PATH"
 DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:5173", "http://localhost:5173"]
+ANALYZE_DRAFT_PRS_ENV = "PATCHGUARD_ANALYZE_DRAFT_PRS"
 
 
 class AnalyzePRRequest(BaseModel):
@@ -43,6 +58,9 @@ class AnalyzePRRequest(BaseModel):
     cleanup_workspace: bool = False
     skip_llm: bool = True
     skip_docker: bool = False
+    compare_base: bool = False
+    use_memory: bool = False
+    memory_db_path: str | None = None
 
 
 class AnalysisRecord(BaseModel):
@@ -60,6 +78,27 @@ class AnalysisSubmitted(BaseModel):
     status: AnalysisStatus
     status_url: str
     report_url: str
+
+
+class AppInstallationListResponse(BaseModel):
+    count: int
+    installations: list[GitHubAppInstallation]
+
+
+class AppRepositoryListResponse(BaseModel):
+    count: int
+    repositories: list[GitHubAppRepository]
+
+
+class AppJobDetail(BaseModel):
+    job: GitHubAppAnalysisJob
+    report_summary: GitHubAppAnalysisReport | None = None
+
+
+class AppRepositoryJobsResponse(BaseModel):
+    repository: GitHubAppRepository
+    count: int
+    jobs: list[AppJobDetail]
 
 
 class AnalysisStore:
@@ -130,6 +169,9 @@ class AnalysisStore:
 def create_app(
     *,
     store: AnalysisStore | None = None,
+    github_app_store: GitHubAppSQLiteStore | None = None,
+    github_webhook_secret: str | None = None,
+    github_analyze_draft_prs: bool | None = None,
     report_service_factory: Callable[[], SkeletonReportService] | None = None,
 ) -> FastAPI:
     app = FastAPI(
@@ -145,6 +187,9 @@ def create_app(
         allow_headers=["*"],
     )
     app.state.analysis_store = store or AnalysisStore()
+    app.state.github_app_store = github_app_store
+    app.state.github_webhook_secret = github_webhook_secret
+    app.state.github_analyze_draft_prs = github_analyze_draft_prs
     app.state.report_service_factory = report_service_factory or SkeletonReportService
 
     @app.post(
@@ -188,6 +233,99 @@ def create_app(
             )
         return JSONResponse(json.loads(report_path.read_text(encoding="utf-8")))
 
+    @app.get("/api/app/installations", response_model=AppInstallationListResponse)
+    async def list_app_installations() -> AppInstallationListResponse:
+        store = _github_app_store(app)
+        installations = store.list_installations()
+        return AppInstallationListResponse(
+            count=len(installations),
+            installations=installations,
+        )
+
+    @app.get("/api/app/repositories", response_model=AppRepositoryListResponse)
+    async def list_app_repositories() -> AppRepositoryListResponse:
+        store = _github_app_store(app)
+        repositories = store.list_repositories()
+        return AppRepositoryListResponse(
+            count=len(repositories),
+            repositories=repositories,
+        )
+
+    @app.get(
+        "/api/app/repositories/{owner}/{repo}/jobs",
+        response_model=AppRepositoryJobsResponse,
+    )
+    async def list_app_repository_jobs(owner: str, repo: str) -> AppRepositoryJobsResponse:
+        store = _github_app_store(app)
+        repository = _get_repository_or_404(store, f"{owner}/{repo}")
+        jobs = store.list_analysis_jobs_for_repository(_required_id(repository.id, "repository"))
+        return AppRepositoryJobsResponse(
+            repository=repository,
+            count=len(jobs),
+            jobs=[_app_job_detail(store, job) for job in jobs],
+        )
+
+    @app.get("/api/app/jobs/{job_id}", response_model=AppJobDetail)
+    async def get_app_job(job_id: int) -> AppJobDetail:
+        store = _github_app_store(app)
+        return _app_job_detail(store, _get_app_job_or_404(store, job_id))
+
+    @app.get("/api/app/jobs/{job_id}/report")
+    async def get_app_job_report(job_id: int) -> JSONResponse:
+        store = _github_app_store(app)
+        job = _get_app_job_or_404(store, job_id)
+        report_path = _app_job_report_path_or_404(store, job)
+        return JSONResponse(json.loads(report_path.read_text(encoding="utf-8")))
+
+    @app.post("/github/webhook", status_code=status.HTTP_202_ACCEPTED)
+    async def github_webhook(request: Request) -> dict[str, object]:
+        body = await request.body()
+        event_name = request.headers.get("X-GitHub-Event")
+        delivery_id = request.headers.get("X-GitHub-Delivery")
+        signature = request.headers.get("X-Hub-Signature-256")
+        if not event_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing X-GitHub-Event header.",
+            )
+        if not delivery_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing X-GitHub-Delivery header.",
+            )
+        secret = _github_webhook_secret(app)
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Webhook payload must be valid JSON.",
+            ) from exc
+        router = GitHubAppWebhookRouter(
+            store=_github_app_store(app),
+            webhook_secret=secret,
+            analyze_draft_prs=_github_analyze_draft_prs(app),
+        )
+        try:
+            result = router.handle(
+                body=body,
+                signature_header=signature,
+                event_name=event_name,
+                delivery_id=delivery_id,
+                payload=payload,
+            )
+        except WebhookSignatureError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(exc),
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+        return result
+
     return app
 
 
@@ -221,6 +359,9 @@ def _run_analysis(app: FastAPI, analysis_id: str, request: AnalyzePRRequest) -> 
             cleanup_workspace=request.cleanup_workspace,
             skip_llm=request.skip_llm,
             skip_docker=request.skip_docker,
+            compare_base=request.compare_base,
+            use_memory=request.use_memory,
+            memory_db_path=request.memory_db_path or ".patchguard/memory/patchguard-memory.db",
             status_callback=update_status,
         )
         final_status: AnalysisStatus
@@ -251,12 +392,118 @@ def _get_record_or_404(app: FastAPI, analysis_id: str) -> AnalysisRecord:
         ) from exc
 
 
+def _get_repository_or_404(
+    store: GitHubAppSQLiteStore,
+    full_name: str,
+) -> GitHubAppRepository:
+    try:
+        return store.get_repository_by_full_name(full_name)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"GitHub App repository not found: {full_name}",
+        ) from exc
+
+
+def _get_app_job_or_404(
+    store: GitHubAppSQLiteStore,
+    job_id: int,
+) -> GitHubAppAnalysisJob:
+    try:
+        return store.get_analysis_job(job_id)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"GitHub App analysis job not found: {job_id}",
+        ) from exc
+
+
+def _app_job_detail(
+    store: GitHubAppSQLiteStore,
+    job: GitHubAppAnalysisJob,
+) -> AppJobDetail:
+    return AppJobDetail(
+        job=job,
+        report_summary=_app_report_summary_or_none(store, job),
+    )
+
+
+def _app_report_summary_or_none(
+    store: GitHubAppSQLiteStore,
+    job: GitHubAppAnalysisJob,
+) -> GitHubAppAnalysisReport | None:
+    try:
+        return store.get_report_summary_by_job_id(_required_id(job.id, "analysis job"))
+    except KeyError:
+        return None
+
+
+def _app_job_report_path_or_404(
+    store: GitHubAppSQLiteStore,
+    job: GitHubAppAnalysisJob,
+) -> Path:
+    report_path: Path | None = None
+    try:
+        summary = store.get_report_summary_by_job_id(_required_id(job.id, "analysis job"))
+        report_path = Path(summary.report_json_path)
+    except KeyError:
+        if job.report_path:
+            report_path = Path(job.report_path)
+    if report_path is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"GitHub App report is unavailable for job: {job.id}",
+        )
+    if not report_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"GitHub App report file was not found for job: {job.id}",
+        )
+    return report_path
+
+
+def _required_id(value: int | None, model_name: str) -> int:
+    if value is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Stored {model_name} row is missing its database id.",
+        )
+    return value
+
+
 def _cors_origins_from_env() -> list[str]:
     raw_origins = os.getenv("PATCHGUARD_CORS_ORIGINS")
     if not raw_origins:
         return DEFAULT_CORS_ORIGINS
     origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
     return origins or DEFAULT_CORS_ORIGINS
+
+
+def _github_app_store(app: FastAPI) -> GitHubAppSQLiteStore:
+    store: GitHubAppSQLiteStore | None = app.state.github_app_store
+    if store is None:
+        store = GitHubAppSQLiteStore(os.getenv(GITHUB_APP_DB_ENV, str(DEFAULT_GITHUB_APP_DB)))
+        store.initialize()
+        app.state.github_app_store = store
+    return store
+
+
+def _github_webhook_secret(app: FastAPI) -> str:
+    secret = app.state.github_webhook_secret or os.getenv(GITHUB_WEBHOOK_SECRET_ENV)
+    if not secret:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"{GITHUB_WEBHOOK_SECRET_ENV} is not configured.",
+        )
+    return secret
+
+
+def _github_analyze_draft_prs(app: FastAPI) -> bool:
+    configured: bool | None = app.state.github_analyze_draft_prs
+    if configured is not None:
+        return configured
+    raw_value = os.getenv(ANALYZE_DRAFT_PRS_ENV, "")
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 app = create_app()

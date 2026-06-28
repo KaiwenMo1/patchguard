@@ -57,6 +57,7 @@ class PolicyService:
 
         existing_status = self._combined_status(self._existing_runs(report))
         generated_failed = self._generated_tests_failed(self._generated_runs(report))
+        base_head_regression = report.base_comparison.status == "regression"
         high_security = self._has_high_security(report.security_findings)
         secret_detected = self._secrets_detected(report.security_findings)
         auth_without_tests = self._sensitive_source_without_tests(
@@ -76,6 +77,14 @@ class PolicyService:
             self._trigger_configured_rule(
                 "generated_test_failure",
                 "Generated regression tests failed.",
+                config,
+                block,
+                warn,
+            )
+        if base_head_regression:
+            self._trigger_configured_rule(
+                "base_head_regression",
+                "Base tests passed but PR-head tests failed.",
                 config,
                 block,
                 warn,
@@ -202,6 +211,10 @@ class PolicyService:
                 runs.append(report.dependency_install)
             if report.existing_tests:
                 runs.append(report.existing_tests)
+            if report.base_comparison.base_tests:
+                runs.append(report.base_comparison.base_tests)
+            if report.base_comparison.head_tests:
+                runs.append(report.base_comparison.head_tests)
             runs.extend(report.generated_test_results)
             runs.extend(report.static_analysis_results)
             if report.test_generation:
@@ -209,6 +222,10 @@ class PolicyService:
         else:
             runs.extend(report.sandbox_results)
             runs.extend(report.existing_test_results)
+            if report.base_comparison.base_tests:
+                runs.append(report.base_comparison.base_tests)
+            if report.base_comparison.head_tests:
+                runs.append(report.base_comparison.head_tests)
             runs.extend(report.generated_test_results)
             runs.extend(report.static_analysis_results)
             if report.test_generation:

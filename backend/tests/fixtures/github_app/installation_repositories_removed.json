@@ -1,0 +1,34 @@
+{
+  "action": "removed",
+  "installation": {
+    "id": 98765,
+    "account": {
+      "login": "KaiwenMo1",
+      "id": 12345678,
+      "type": "User",
+      "site_admin": false
+    },
+    "repository_selection": "selected",
+    "app_id": 12345,
+    "target_id": 12345678,
+    "target_type": "User"
+  },
+  "repository_selection": "selected",
+  "repositories_added": [],
+  "repositories_removed": [
+    {
+      "id": 1002,
+      "node_id": "R_kwDODemoParser",
+      "name": "demo-parser",
+      "full_name": "KaiwenMo1/demo-parser",
+      "private": false,
+      "default_branch": "trunk"
+    }
+  ],
+  "sender": {
+    "login": "KaiwenMo1",
+    "id": 12345678,
+    "type": "User",
+    "site_admin": false
+  }
+}

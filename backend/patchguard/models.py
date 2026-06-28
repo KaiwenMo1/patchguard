@@ -36,6 +36,7 @@ class MergeDecision(StrEnum):
 
 class MergeRecommendation(StrEnum):
     DO_NOT_MERGE_EXISTING_TESTS = "Do not merge: existing tests failed."
+    DO_NOT_MERGE_BASE_HEAD_REGRESSION = "Do not merge: base tests passed but PR head tests failed."
     REVIEW_GENERATED_FAILURES = "Review generated failing cases before merge."
     DO_NOT_MERGE_SECURITY = "Do not merge until security issue is reviewed."
     HUMAN_REVIEW = "Merge only after human review."
@@ -53,6 +54,7 @@ class PolicyConfig(BaseModel):
     block_on: list[str] = Field(
         default_factory=lambda: [
             "generated_test_failure",
+            "base_head_regression",
             "existing_test_failure",
             "high_security_finding",
             "secret_detected",
@@ -220,6 +222,15 @@ class RiskInput(BaseModel):
     security_sensitive_files_changed: bool = False
     existing_tests_status: Literal["passed", "failed", "skipped", "error", "not_run"] = "not_run"
     generated_tests_status: Literal["passed", "failed", "skipped", "error", "not_run"] = "not_run"
+    base_comparison_status: Literal[
+        "not_run",
+        "passed",
+        "regression",
+        "base_failed",
+        "head_failed",
+        "error",
+        "skipped",
+    ] = "not_run"
     generated_tests_failed_count: int = 0
     existing_tests_failed_count: int = 0
     security_findings_by_severity: SecurityFindingCounts = Field(
@@ -297,6 +308,56 @@ class FailureMapping(BaseModel):
     suggested_next_step: str = "Review the generated test failure before merging."
 
 
+class EvidenceMemoryHit(BaseModel):
+    source_id: str
+    source_type: str
+    title: str
+    summary: str
+    score: float = 0.0
+    repository: str | None = None
+    pr_url: str | None = None
+    report_path: str | None = None
+    file_path: str | None = None
+    function_name: str | None = None
+    risk_score: int | None = None
+    risk_level: str | None = None
+    reasons: list[str] = Field(default_factory=list)
+
+
+class EvidencePlanStep(BaseModel):
+    step_id: str
+    title: str
+    reason: str
+    target_files: list[str] = Field(default_factory=list)
+    target_functions: list[str] = Field(default_factory=list)
+    commands: list[str] = Field(default_factory=list)
+    status: Literal["planned", "completed", "skipped", "failed", "error"] = "planned"
+    evidence: list[str] = Field(default_factory=list)
+
+
+class EvidencePlan(BaseModel):
+    summary: str = ""
+    steps: list[EvidencePlanStep] = Field(default_factory=list)
+
+
+class BaseComparisonResult(BaseModel):
+    enabled: bool = False
+    base_sha: str | None = None
+    head_sha: str | None = None
+    status: Literal[
+        "not_run",
+        "passed",
+        "regression",
+        "base_failed",
+        "head_failed",
+        "error",
+        "skipped",
+    ] = "not_run"
+    summary: str = ""
+    base_tests: ToolRun | None = None
+    head_tests: ToolRun | None = None
+
+
 class EvidenceRisk(BaseModel):
     title: str
     severity: Literal["low", "medium", "high", "critical"] = "medium"
@@ -336,6 +397,9 @@ class RiskReport(BaseModel):
     generated_tests: list[GeneratedTest] = Field(default_factory=list)
     generated_test_metadata: list[GeneratedTestMetadata] = Field(default_factory=list)
     failure_mappings: list[FailureMapping] = Field(default_factory=list)
+    memory_hits: list[EvidenceMemoryHit] = Field(default_factory=list)
+    evidence_plan: EvidencePlan | None = None
+    base_comparison: BaseComparisonResult = Field(default_factory=BaseComparisonResult)
     test_generation: ToolRun | None = None
     generated_test_results: list[ToolRun] = Field(default_factory=list)
     test_results: list[TestResult] = Field(default_factory=list)
@@ -404,6 +468,9 @@ class PatchGuardReport(BaseModel):
     generated_tests: list[GeneratedTest] = Field(default_factory=list)
     generated_test_metadata: list[GeneratedTestMetadata] = Field(default_factory=list)
     failure_mappings: list[FailureMapping] = Field(default_factory=list)
+    memory_hits: list[EvidenceMemoryHit] = Field(default_factory=list)
+    evidence_plan: EvidencePlan | None = None
+    base_comparison: BaseComparisonResult = Field(default_factory=BaseComparisonResult)
     test_generation: ToolRun | None = None
     sandbox_results: list[ToolRun] = Field(default_factory=list)
     existing_test_results: list[ToolRun] = Field(default_factory=list)

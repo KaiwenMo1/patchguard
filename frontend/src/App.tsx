@@ -18,7 +18,14 @@ import {
 } from "lucide-react";
 import { FormEvent, MutableRefObject, ReactNode, useEffect, useRef, useState } from "react";
 
-import { ApiError, getAnalysis, getReport, submitAnalysis } from "./api/client";
+import {
+  ApiError,
+  getAnalysis,
+  getAppJobReport,
+  getReport,
+  submitAnalysis,
+} from "./api/client";
+import { AppAuditDashboard, analysisRecordForAppJob } from "./components/AppAuditDashboard";
 import {
   DEMO_REPORTS,
   STATIC_DEMO_MODE,
@@ -28,7 +35,9 @@ import {
 import type {
   AnalysisRecord,
   AnalysisStatus,
+  AppJobDetail,
   BehavioralContract,
+  BaseComparisonResult,
   ChangedFile,
   FailureMapping,
   GeneratedTest,
@@ -41,6 +50,7 @@ import type {
 } from "./api/types";
 
 const TERMINAL_STATUSES: AnalysisStatus[] = ["completed", "failed", "partial"];
+type DashboardSurface = "analyze" | "app";
 
 const STATUS_STEPS: Array<{ status: AnalysisStatus; label: string }> = [
   { status: "pending", label: "Queued" },
@@ -55,6 +65,7 @@ const STATUS_STEPS: Array<{ status: AnalysisStatus; label: string }> = [
 ];
 
 export default function App() {
+  const [activeSurface, setActiveSurface] = useState<DashboardSurface>("analyze");
   const [prUrl, setPrUrl] = useState("");
   const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisRecord | null>(null);
@@ -63,6 +74,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [skipLlm, setSkipLlm] = useState(true);
   const [skipDocker, setSkipDocker] = useState(false);
+  const [compareBase, setCompareBase] = useState(false);
+  const [useMemory, setUseMemory] = useState(false);
   const [selectedDemoId, setSelectedDemoId] = useState(DEMO_REPORTS[0].id);
   const reportRef = useRef<HTMLElement | null>(null);
 
@@ -174,7 +187,12 @@ export default function App() {
     setAnalysis(null);
 
     try {
-      const submitted = await submitAnalysis(trimmedUrl, { skipLlm, skipDocker });
+      const submitted = await submitAnalysis(trimmedUrl, {
+        skipLlm,
+        skipDocker,
+        compareBase: compareBase && !skipDocker,
+        useMemory,
+      });
       setAnalysisId(submitted.analysis_id);
       setAnalysis({
         analysis_id: submitted.analysis_id,
@@ -206,7 +224,30 @@ export default function App() {
     }
   };
 
+  const switchSurface = (surface: DashboardSurface) => {
+    setActiveSurface(surface);
+    setError(null);
+    if (surface === "app") {
+      setAnalysisId(null);
+      setAnalysis(null);
+      setReport(null);
+    }
+  };
+
+  const openAppJobReport = async (detail: AppJobDetail) => {
+    if (detail.job.id == null) {
+      throw new Error("This GitHub App job is missing its database id.");
+    }
+    setError(null);
+    setAnalysisId(null);
+    setReport(null);
+    const nextReport = await getAppJobReport(detail.job.id);
+    setAnalysis(analysisRecordForAppJob(detail.job, nextReport));
+    setReport(nextReport);
+  };
+
   const failedWithoutReport = analysis?.status === "failed" && !report;
+  const showAnalyzer = STATIC_DEMO_MODE || activeSurface === "analyze";
 
   return (
     <div className="app-frame min-h-screen bg-[#0b0d0c]">
@@ -224,34 +265,94 @@ export default function App() {
               <p className="text-xs text-[#a8b2ad]">Evidence architecture</p>
             </div>
           </div>
-          <a
-            href="https://github.com/KaiwenMo1/patchguard"
-            className="header-link hidden items-center gap-2 text-sm font-medium text-[#c4ccc8] sm:inline-flex"
-          >
-            <Github className="h-4 w-4" aria-hidden="true" />
-            View source
-            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-          </a>
+          <div className="flex items-center gap-2">
+            {!STATIC_DEMO_MODE ? (
+              <nav className="hidden rounded-full border border-[#252b28] bg-[#0f1210] p-1 md:flex" aria-label="Dashboard mode">
+                <button
+                  type="button"
+                  onClick={() => switchSurface("analyze")}
+                  className={[
+                    "rounded-full px-3 py-2 text-sm font-semibold transition",
+                    activeSurface === "analyze"
+                      ? "bg-[#f3f5f4] text-[#080a09]"
+                      : "text-[#9ca6a0] hover:text-[#f3f5f4]",
+                  ].join(" ")}
+                >
+                  PR analyzer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchSurface("app")}
+                  className={[
+                    "rounded-full px-3 py-2 text-sm font-semibold transition",
+                    activeSurface === "app"
+                      ? "bg-[#f3f5f4] text-[#080a09]"
+                      : "text-[#9ca6a0] hover:text-[#f3f5f4]",
+                  ].join(" ")}
+                >
+                  App audit
+                </button>
+              </nav>
+            ) : null}
+            <a
+              href="https://github.com/KaiwenMo1/patchguard"
+              className="header-link hidden items-center gap-2 text-sm font-medium text-[#c4ccc8] sm:inline-flex"
+            >
+              <Github className="h-4 w-4" aria-hidden="true" />
+              View source
+              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
+          </div>
         </div>
       </header>
 
       <main id="main-content" className="mx-auto max-w-[1400px] px-4 pb-20 sm:px-6 lg:px-8">
-        <section className="analysis-grid">
-          <div className="panel analysis-panel overflow-hidden">
-            <div className="analysis-intro border-b border-[#252b28] px-6 py-8 sm:px-10 sm:py-12 lg:px-14 lg:py-16">
-              <div className="signal-label flex items-center gap-2 text-xs font-semibold text-[#74c69a]">
-                <span className="signal-dot" aria-hidden="true" />
-                Verification studio
+        {!STATIC_DEMO_MODE ? (
+          <div className="mb-5 grid grid-cols-2 gap-2 md:hidden">
+            <button
+              type="button"
+              onClick={() => switchSurface("analyze")}
+              className={[
+                "min-h-11 rounded-full border px-3 text-sm font-semibold transition",
+                activeSurface === "analyze"
+                  ? "border-[#f3f5f4] bg-[#f3f5f4] text-[#080a09]"
+                  : "border-[#252b28] bg-[#0f1210] text-[#9ca6a0]",
+              ].join(" ")}
+            >
+              PR analyzer
+            </button>
+            <button
+              type="button"
+              onClick={() => switchSurface("app")}
+              className={[
+                "min-h-11 rounded-full border px-3 text-sm font-semibold transition",
+                activeSurface === "app"
+                  ? "border-[#f3f5f4] bg-[#f3f5f4] text-[#080a09]"
+                  : "border-[#252b28] bg-[#0f1210] text-[#9ca6a0]",
+              ].join(" ")}
+            >
+              App audit
+            </button>
+          </div>
+        ) : null}
+
+        {showAnalyzer ? (
+          <section className="analysis-grid">
+            <div className="panel analysis-panel overflow-hidden">
+              <div className="analysis-intro border-b border-[#252b28] px-6 py-8 sm:px-10 sm:py-12 lg:px-14 lg:py-16">
+                <div className="signal-label flex items-center gap-2 text-xs font-semibold text-[#74c69a]">
+                  <span className="signal-dot" aria-hidden="true" />
+                  Verification studio
+                </div>
+                <h1 className="mt-7 max-w-2xl text-5xl font-semibold leading-[0.96] text-[#f3f5f4] sm:text-6xl lg:text-7xl">
+                  Evidence
+                  <span className="block font-normal italic text-[#9ca6a0]">Architecture.</span>
+                </h1>
+                <p className="mt-7 max-w-md text-base leading-7 text-[#9ca6a0]">
+                  We turn uncertain pull requests into explainable evidence: tests, security findings,
+                  and deterministic merge risk.
+                </p>
               </div>
-              <h1 className="mt-7 max-w-2xl text-5xl font-semibold leading-[0.96] text-[#f3f5f4] sm:text-6xl lg:text-7xl">
-                Evidence
-                <span className="block font-normal italic text-[#9ca6a0]">Architecture.</span>
-              </h1>
-              <p className="mt-7 max-w-md text-base leading-7 text-[#9ca6a0]">
-                We turn uncertain pull requests into explainable evidence: tests, security findings,
-                and deterministic merge risk.
-              </p>
-            </div>
 
             <form className="analysis-form max-w-[760px] space-y-4 px-6 pb-10 sm:px-10 sm:pb-12 lg:px-14 lg:pb-16" onSubmit={onSubmit}>
               {STATIC_DEMO_MODE ? (
@@ -362,14 +463,36 @@ export default function App() {
                       />
                       Skip Docker
                     </label>
+                    <label className="flex items-center gap-3 text-sm font-medium text-[#f3f5f4]">
+                      <input
+                        type="checkbox"
+                        checked={compareBase}
+                        disabled={skipDocker}
+                        onChange={(event) => setCompareBase(event.target.checked)}
+                        className="h-4 w-4 rounded border-[#252b28] text-[#74c69a] focus:ring-[#74c69a] disabled:opacity-40"
+                      />
+                      Compare base
+                    </label>
+                    <label className="flex items-center gap-3 text-sm font-medium text-[#f3f5f4]">
+                      <input
+                        type="checkbox"
+                        checked={useMemory}
+                        onChange={(event) => setUseMemory(event.target.checked)}
+                        className="h-4 w-4 rounded border-[#252b28] text-[#74c69a] focus:ring-[#74c69a]"
+                      />
+                      Use memory
+                    </label>
                   </div>
                 </>
               )}
             </form>
-          </div>
+            </div>
 
-          <StatusPanel analysis={analysis} report={report} />
-        </section>
+            <StatusPanel analysis={analysis} report={report} />
+          </section>
+        ) : (
+          <AppAuditDashboard onOpenReport={openAppJobReport} />
+        )}
 
         {error ? (
           <Notice tone="danger" title="Dashboard request failed">
@@ -513,6 +636,9 @@ function ReportView({
 
       <AIReviewCard report={report} />
       <BehavioralContractCard report={report} />
+      <EvidencePlanCard report={report} />
+      <MemoryHitsCard report={report} />
+      <BaseComparisonCard report={report} />
 
       <div className="grid gap-5 xl:grid-cols-2">
         <RunCard
@@ -1225,6 +1351,134 @@ function CollapsibleSection({
   );
 }
 
+function EvidencePlanCard({ report }: { report: RiskReport }) {
+  const plan = report.evidence_plan;
+  if (!plan || plan.steps.length === 0) {
+    return null;
+  }
+
+  return (
+    <article className="panel p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="section-title">Evidence plan</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#9ca6a0]">{plan.summary}</p>
+        </div>
+        <ListChecks className="h-5 w-5 text-[#74c69a]" aria-hidden="true" />
+      </div>
+      <div className="mt-5 grid gap-3 xl:grid-cols-2">
+        {plan.steps.map((step) => (
+          <div key={step.step_id} className="rounded-md border border-[#252b28] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-[#f3f5f4]">{step.title}</p>
+              <span className="rounded-sm border border-[#252b28] px-2 py-1 text-[11px] uppercase tracking-[0.16em] text-[#9ca6a0]">
+                {step.status}
+              </span>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-[#9ca6a0]">{step.reason}</p>
+            {step.evidence.length > 0 ? (
+              <ul className="mt-3 space-y-1 text-xs leading-5 text-[#c9d2cc]">
+                {step.evidence.slice(0, 3).map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function MemoryHitsCard({ report }: { report: RiskReport }) {
+  const hits = report.memory_hits ?? [];
+  if (hits.length === 0) {
+    return null;
+  }
+
+  return (
+    <article className="panel p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="section-title">PatchGuard memory</p>
+          <p className="mt-2 text-sm leading-6 text-[#9ca6a0]">
+            Similar prior evidence retrieved from local PatchGuard reports.
+          </p>
+        </div>
+        <CircleDashed className="h-5 w-5 text-[#74c69a]" aria-hidden="true" />
+      </div>
+      <div className="mt-5 space-y-3">
+        {hits.slice(0, 5).map((hit) => (
+          <div key={hit.source_id} className="rounded-md border border-[#252b28] p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-[#f3f5f4]">{hit.title}</p>
+              <span className="rounded-sm bg-[#111513] px-2 py-1 text-[11px] text-[#9ca6a0]">
+                {hit.source_type}
+              </span>
+              <span className="rounded-sm bg-[#111513] px-2 py-1 text-[11px] text-[#9ca6a0]">
+                score {hit.score.toFixed(1)}
+              </span>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-[#9ca6a0]">{hit.summary}</p>
+            {hit.pr_url ? (
+              <a
+                href={hit.pr_url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-[#74c69a]"
+              >
+                Source PR <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function BaseComparisonCard({ report }: { report: RiskReport }) {
+  const comparison = report.base_comparison;
+  if (!comparison?.enabled) {
+    return null;
+  }
+  const badgeStatus = baseComparisonRunStatus(comparison.status);
+
+  return (
+    <section className="space-y-4">
+      <article className="panel p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="section-title">Base vs head</p>
+            <p className="mt-2 text-sm leading-6 text-[#9ca6a0]">{comparison.summary}</p>
+          </div>
+          <StatusBadge status={badgeStatus} label={comparison.status.replace(/_/g, " ")} />
+        </div>
+      </article>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <BaseComparisonRunSummary title="Base Tests" run={comparison.base_tests} />
+        <BaseComparisonRunSummary title="Head Tests" run={comparison.head_tests} />
+      </div>
+    </section>
+  );
+}
+
+function BaseComparisonRunSummary({ title, run }: { title: string; run?: ToolRun | null }) {
+  return (
+    <article className="panel p-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="section-title">{title}</p>
+          <p className="mt-2 text-sm leading-6 text-[#9ca6a0]">
+            {run?.summary ?? "This comparison run was not executed."}
+          </p>
+        </div>
+        {run ? <StatusBadge status={run.status} /> : <StatusBadge status="skipped" />}
+      </div>
+    </article>
+  );
+}
+
 function GeneratedTestBlock({ test }: { test: GeneratedTest }) {
   return (
     <div>
@@ -1406,6 +1660,8 @@ function collectLogRuns(report: RiskReport): ToolRun[] {
     ...(report.clone_results ?? []),
     report.dependency_install,
     report.existing_tests,
+    report.base_comparison?.base_tests,
+    report.base_comparison?.head_tests,
     ...(report.static_analysis_results ?? []),
     report.contract_extraction,
     report.test_generation,
@@ -1413,6 +1669,19 @@ function collectLogRuns(report: RiskReport): ToolRun[] {
     report.ai_review_run,
     ...(report.sandbox_results ?? []),
   ].filter((run): run is ToolRun => Boolean(run));
+}
+
+function baseComparisonRunStatus(status: BaseComparisonResult["status"]): RunStatus {
+  if (status === "passed") {
+    return "passed";
+  }
+  if (status === "regression" || status === "head_failed") {
+    return "failed";
+  }
+  if (status === "skipped" || status === "not_run") {
+    return "skipped";
+  }
+  return "error";
 }
 
 function emptyBehavioralContract(): BehavioralContract {

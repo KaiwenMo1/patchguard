@@ -59,6 +59,9 @@ class RiskScoreService:
             security_sensitive_files_changed=bool(diff_summary.security_sensitive_files),
             existing_test_runs=existing_runs,
             generated_test_runs=report.generated_test_results,
+            base_comparison_status=(
+                report.base_comparison.status if report.base_comparison.enabled else "not_run"
+            ),
             dependency_runs=dependency_runs,
             security_findings=report.security_findings,
             behavior_confidence=self._contract_confidence(report),
@@ -79,6 +82,9 @@ class RiskScoreService:
             security_sensitive_files_changed=bool(diff_summary.security_sensitive_files),
             existing_test_runs=report.existing_test_results,
             generated_test_runs=report.generated_test_results,
+            base_comparison_status=(
+                report.base_comparison.status if report.base_comparison.enabled else "not_run"
+            ),
             dependency_runs=dependency_runs,
             security_findings=report.security_findings,
             behavior_confidence=self._contract_confidence(report),
@@ -134,6 +140,7 @@ class RiskScoreService:
         security_sensitive_files_changed: bool,
         existing_test_runs: list[ToolRun],
         generated_test_runs: list[ToolRun],
+        base_comparison_status: str,
         dependency_runs: list[ToolRun],
         security_findings: list[SecurityFinding],
         behavior_confidence: float | None = None,
@@ -158,6 +165,7 @@ class RiskScoreService:
             security_sensitive_files_changed=security_sensitive_files_changed,
             existing_tests_status=existing_status,
             generated_tests_status=generated_status,
+            base_comparison_status=base_comparison_status,
             existing_tests_failed_count=self._failed_count(existing_test_runs),
             generated_tests_failed_count=self._failed_count(generated_test_runs),
             security_findings_by_severity=self._security_counts(security_findings),
@@ -281,6 +289,33 @@ class RiskScoreService:
                 "Generated regression tests errored or timed out",
                 "high",
             )
+        if risk_input.base_comparison_status == "regression":
+            score += 100
+            self._reason(
+                reasons,
+                "base_comparison",
+                100,
+                "Base pytest passed but PR-head pytest failed",
+                "critical",
+            )
+        elif risk_input.base_comparison_status == "head_failed":
+            score += 75
+            self._reason(
+                reasons,
+                "base_comparison",
+                75,
+                "PR-head pytest failed during base-vs-head comparison",
+                "high",
+            )
+        elif risk_input.base_comparison_status == "error":
+            score += 45
+            self._reason(
+                reasons,
+                "base_comparison",
+                45,
+                "Base-vs-head comparison errored",
+                "medium",
+            )
 
         if risk_input.source_changed and not risk_input.tests_changed:
             score += 80
@@ -311,6 +346,15 @@ class RiskScoreService:
                 "behavioral",
                 100,
                 "Generated tests found behavior that does not match expectations",
+                "critical",
+            )
+        elif risk_input.base_comparison_status == "regression":
+            score += 100
+            self._reason(
+                reasons,
+                "behavioral",
+                100,
+                "Base-vs-head comparison found a PR-introduced test regression",
                 "critical",
             )
         elif risk_input.existing_tests_status == "failed":
@@ -437,6 +481,16 @@ class RiskScoreService:
         if risk_input.diff_too_large_for_full_analysis:
             score += 60
             self._reason(reasons, "uncertainty", 60, "Diff was too large for complete line-level analysis", "high")
+        if risk_input.base_comparison_status in {"base_failed", "skipped"}:
+            score += 20
+            self._reason(
+                reasons,
+                "uncertainty",
+                20,
+                "Base-vs-head comparison did not produce clean regression evidence",
+                "low",
+                [f"status={risk_input.base_comparison_status}"],
+            )
         if risk_input.behavior_confidence is not None and risk_input.behavior_confidence < 0.4:
             score += 20
             self._reason(reasons, "uncertainty", 20, "Behavior analysis confidence was low", "low")
@@ -450,6 +504,8 @@ class RiskScoreService:
             return 75, "High-severity security evidence requires high risk floor"
         if risk_input.existing_tests_status == "failed":
             return 80, "Failing existing tests require critical risk floor"
+        if risk_input.base_comparison_status == "regression":
+            return 85, "Base passed but PR head failed, indicating a likely regression"
         if risk_input.generated_tests_status == "failed":
             return 70, "Failing generated regression tests require high risk floor"
         if (
@@ -486,6 +542,7 @@ class RiskScoreService:
         if (
             score >= 80
             or risk_input.existing_tests_status in {"failed", "error"}
+            or risk_input.base_comparison_status == "regression"
             or counts.critical
             or counts.high
             or risk_input.secrets_detected
@@ -629,6 +686,8 @@ class RiskScoreService:
 
     @staticmethod
     def _recommendation_for_risk_report(report: RiskReport) -> MergeRecommendation:
+        if report.base_comparison.status == "regression":
+            return MergeRecommendation.DO_NOT_MERGE_BASE_HEAD_REGRESSION
         if report.existing_tests and report.existing_tests.status in {RunStatus.FAILED, RunStatus.ERROR}:
             return MergeRecommendation.DO_NOT_MERGE_EXISTING_TESTS
         if any(
@@ -644,6 +703,8 @@ class RiskScoreService:
 
     @staticmethod
     def _recommendation(report: PatchGuardReport) -> MergeRecommendation:
+        if report.base_comparison.status == "regression":
+            return MergeRecommendation.DO_NOT_MERGE_BASE_HEAD_REGRESSION
         if any(run.status in {RunStatus.FAILED, RunStatus.ERROR} for run in report.existing_test_results):
             return MergeRecommendation.DO_NOT_MERGE_EXISTING_TESTS
         if any(

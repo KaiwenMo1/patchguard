@@ -1,0 +1,23 @@
+{
+  "action": "deleted",
+  "installation": {
+    "id": 98765,
+    "account": {
+      "login": "KaiwenMo1",
+      "id": 12345678,
+      "node_id": "U_kwDOExample",
+      "type": "User",
+      "site_admin": false
+    },
+    "repository_selection": "selected",
+    "app_id": 12345,
+    "target_id": 12345678,
+    "target_type": "User"
+  },
+  "sender": {
+    "login": "KaiwenMo1",
+    "id": 12345678,
+    "type": "User",
+    "site_admin": false
+  }
+}
